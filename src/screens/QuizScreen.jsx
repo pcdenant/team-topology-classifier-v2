@@ -7,7 +7,7 @@ import { C } from '../styles'
 
 const SEGMENTS = 5
 
-export default function QuizScreen({ questionId, answers, onAnswer, onBack, step }) {
+export default function QuizScreen({ questionId, answers, onAnswer, onBack, step, teamName }) {
   const [local, setLocal] = useState(answers[questionId] ?? null)
   const q = QUESTION_DEFINITIONS[questionId]
 
@@ -36,10 +36,12 @@ export default function QuizScreen({ questionId, answers, onAnswer, onBack, step
 
       {/* Header */}
       <div className="quiz-header">
-        <button className="btn btn-sec btn-sm" onClick={onBack} type="button">
-          ← Retour
-        </button>
-        <span className="quiz-step">Question {step} / {SEGMENTS} max</span>
+        <button className="btn btn-sec btn-sm" onClick={onBack} type="button">← Retour</button>
+        <div style={{ textAlign: 'center' }}>
+          {teamName && <p style={{ fontSize: 12, fontWeight: 700, color: C.vert, marginBottom: 2 }}>{teamName}</p>}
+          <span className="quiz-step">Question {step} / {SEGMENTS} max</span>
+        </div>
+        <div style={{ width: 80 }} />
       </div>
 
       {/* Question card */}

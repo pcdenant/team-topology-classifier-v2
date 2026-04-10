@@ -4,14 +4,14 @@ import {
   getSecondaryKey
 } from '../engine'
 
-const CONF_CLS = { high: 'clarity-high', medium: 'clarity-medium', low: 'clarity-low' }
+const CONF_CLS   = { high: 'clarity-high', medium: 'clarity-medium', low: 'clarity-low' }
 const CONF_LABEL = { high: 'Claire', medium: 'Brouillée', low: 'Absente' }
-const CONF_BARS = { high: 3, medium: 2, low: 1 }
-const CONF_CLR = { high: C.vert, medium: C.warning, low: C.danger }
+const CONF_BARS  = { high: 3, medium: 2, low: 1 }
+const CONF_CLR   = { high: C.vert, medium: C.warning, low: C.danger }
 
-export default function ResultScreen({ result, onRestart }) {
-  const { type, confidence, secondarySignals, alerts, teamName, answers } = result
-  const meta = TYPE_META[type]
+export default function ResultScreen({ result, onContinue, onEdit, onGoHome }) {
+  const { type, confidence, secondarySignals, alerts, teamName } = result
+  const meta      = TYPE_META[type]
   const typeColor = TYPE_CLR[type] ?? C.textLight
   const confColor = CONF_CLR[confidence]
 
@@ -65,22 +65,18 @@ export default function ResultScreen({ result, onRestart }) {
 
   return (
     <div>
-      {/* Page header */}
       <div className="page-header">
         <p className="lbl" style={{ marginBottom: 6 }}>Résultats du diagnostic</p>
         <h1 className="page-title">{teamName || 'Mon équipe'}</h1>
       </div>
 
-      {/* Row 1: Type + Clarity */}
+      {/* Type + Clarity */}
       <div className="bento-2col">
-        {/* Type card */}
         <div className="type-card" style={{ '--type-color': typeColor }}>
-          <p className="type-sub">{TYPE_META[type]?.subtitle ?? type}</p>
+          <p className="type-sub">{meta?.subtitle ?? type}</p>
           <h2 className="type-name">{meta.label}</h2>
           <p className="type-desc">{meta.description}</p>
         </div>
-
-        {/* Clarity card */}
         <div className={`clarity-card ${CONF_CLS[confidence]}`}>
           <span className="clarity-label">Indice de Clarté</span>
           <div>
@@ -109,10 +105,7 @@ export default function ResultScreen({ result, onRestart }) {
               if (!sm) return null
               return (
                 <div key={s} className="signal-card" style={{ '--sig-color': sc }}>
-                  <div className="signal-hdr">
-                    <span className="signal-dot" />
-                    <span className="signal-title">{sm.title}</span>
-                  </div>
+                  <div className="signal-hdr"><span className="signal-dot" /><span className="signal-title">{sm.title}</span></div>
                   <p className="signal-body">{sm.body}</p>
                 </div>
               )
@@ -171,33 +164,28 @@ export default function ResultScreen({ result, onRestart }) {
       <div className="bento-1col">
         <div className="p2-card">
           <p className="p2-title">Ce diagnostic reflète votre situation aujourd'hui.</p>
-          <p className="p2-body">Il ne dit pas encore comment les autres vous perçoivent, ce que vous devriez devenir, ni comment gérer vos interactions avec l'écosystème.</p>
+          <p className="p2-body">Il ne dit pas encore comment les autres vous perçoivent, ce que vous devriez devenir, ni comment gérer vos interactions.</p>
           <div className="p2-list">
             {['→ Perception externe', '→ Type cible', '→ Interactions souhaitées', '→ Plan de transformation complet'].map(x => (
               <span key={x} className="p2-item">{x}</span>
             ))}
           </div>
-          <div>
-            <button className="btn btn-ghost" disabled style={{ opacity: 0.5 }}>
-              Phase 2 — Bientôt disponible
-            </button>
-          </div>
+          <button className="btn btn-ghost" disabled style={{ opacity: 0.5 }}>Phase 2 — Bientôt disponible</button>
         </div>
       </div>
 
-      {/* Export + restart */}
+      {/* Actions footer */}
       <div className="bento-1col">
         <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <p className="lbl" style={{ marginBottom: 4 }}>Exporter les résultats</p>
-            <div className="export-row">
-              <button className="btn btn-tert" onClick={exportMD}>↓ Markdown</button>
-              <button className="btn btn-tert" onClick={exportJSON}>↓ JSON</button>
-            </div>
+          <div className="export-row">
+            <button className="btn btn-tert" onClick={exportMD}>↓ Markdown</button>
+            <button className="btn btn-tert" onClick={exportJSON}>↓ JSON</button>
+            <button className="btn btn-tert" onClick={onEdit}>✎ Modifier</button>
           </div>
-          <button className="btn btn-sec" onClick={onRestart}>
-            ← Nouvelle équipe
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sec" onClick={onGoHome}>← Accueil</button>
+            <button className="btn btn-prim" onClick={onContinue}>Continuer →</button>
+          </div>
         </div>
       </div>
     </div>
