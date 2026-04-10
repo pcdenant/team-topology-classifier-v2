@@ -462,3 +462,33 @@ input, textarea { font-family: inherit; }
   .sidebar { display: none; }
   .app-shell { flex-direction: column; }
 }
+
+/* ─── Dep screen ─────────────────────────────────────────────── */
+.dep-team-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; cursor: pointer;
+  transition: background 0.15s ease;
+}
+.dep-mode-row {
+  padding: 10px 16px 14px;
+  border-top: 1px solid #f0f0f0;
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+
+/* ─── Ecosystem movement map ─────────────────────────────────── */
+.movement-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.movement-cell {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+}
+
+/* ─── Home card hover border color ───────────────────────────── */
+.card-team:hover {
+  border-color: var(--team-border-color, #006946);
+}
