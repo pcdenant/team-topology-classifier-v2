@@ -13,7 +13,7 @@ const CONF_LABEL = { high: 'Claire', medium: 'Brouillée', low: 'Absente' }
 const CONF_CLR   = { high: C.vert, medium: C.warning, low: C.danger }
 const CONF_BG    = { high: C.vertLight, medium: C.warningBg, low: C.dangerBg }
 
-export default function HomeScreen({ teams, onStartNew, onViewTeam, onEvalTeam, onDeleteTeam, onGoEcosystem, onReset }) {
+export default function HomeScreen({ teams, onStartNew, onViewTeam, onEvalTeam, onGoEcosystem, onReset }) {
   const [newName, setNewName] = useState('')
   const [showReset, setShowReset] = useState(false)
 

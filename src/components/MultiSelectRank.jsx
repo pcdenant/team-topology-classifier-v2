@@ -1,38 +1,57 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export default function MultiSelectRank({ options, value, onChange }) {
-  const [selected, setSelected] = useState(value?.selected ?? [])
-  const [ranked, setRanked] = useState(value?.ranked ?? [])
+  const selected = value?.selected ?? []
+  const ranked = value?.ranked ?? []
   const [dragId, setDragId] = useState(null)
   const [overId, setOverId] = useState(null)
 
-  useEffect(() => {
-    if (value) { setSelected(value.selected ?? []); setRanked(value.ranked ?? []) }
-  }, [])
-
   const toggle = (id) => {
-    let ns, nr
     if (selected.includes(id)) {
-      ns = selected.filter(s => s !== id); nr = ranked.filter(r => r !== id)
+      onChange({
+        selected: selected.filter(s => s !== id),
+        ranked: ranked.filter(r => r !== id),
+      })
     } else {
-      ns = [...selected, id]; nr = [...ranked, id]
+      onChange({ selected: [...selected, id], ranked: [...ranked, id] })
     }
-    setSelected(ns); setRanked(nr); onChange({ selected: ns, ranked: nr })
   }
 
   const move = (id, dir) => {
-    const i = ranked.indexOf(id), ni = i + dir
-    if (ni < 0 || ni >= ranked.length) return
-    const nr = [...ranked]; [nr[i], nr[ni]] = [nr[ni], nr[i]]
-    setRanked(nr); onChange({ selected, ranked: nr })
+    const i = ranked.indexOf(id)
+    const ni = i + dir
+    if (i < 0 || ni < 0 || ni >= ranked.length) return
+    const nr = [...ranked]
+    ;[nr[i], nr[ni]] = [nr[ni], nr[i]]
+    onChange({ selected, ranked: nr })
+  }
+
+  const reorderByDrop = (targetId) => {
+    if (!dragId || dragId === targetId) return
+    const fi = ranked.indexOf(dragId)
+    const ti = ranked.indexOf(targetId)
+    if (fi < 0 || ti < 0) return
+    const nr = [...ranked]
+    nr.splice(fi, 1)
+    nr.splice(ti, 0, dragId)
+    onChange({ selected, ranked: nr })
+    setDragId(null)
+    setOverId(null)
   }
 
   return (
     <div>
       <div className="opt-list">
         {options.map(o => (
-          <button key={o.id} className={`opt-card${selected.includes(o.id) ? ' sel' : ''}`} onClick={() => toggle(o.id)} type="button">
-            <span className={`chk${selected.includes(o.id) ? ' on' : ''}`}>{selected.includes(o.id) && '✓'}</span>
+          <button
+            key={o.id}
+            className={`opt-card${selected.includes(o.id) ? ' sel' : ''}`}
+            onClick={() => toggle(o.id)}
+            type="button"
+          >
+            <span className={`chk${selected.includes(o.id) ? ' on' : ''}`}>
+              {selected.includes(o.id) && '✓'}
+            </span>
             <span style={{ flex: 1 }}>{o.label}</span>
           </button>
         ))}
@@ -48,20 +67,15 @@ export default function MultiSelectRank({ options, value, onChange }) {
               const o = options.find(x => x.id === id)
               if (!o) return null
               return (
-                <div key={id}
+                <div
+                  key={id}
                   className={`rank-item${dragId === id ? ' drag' : ''}${overId === id ? ' over' : ''}`}
                   draggable
                   onDragStart={e => { setDragId(id); e.dataTransfer.effectAllowed = 'move' }}
                   onDragOver={e => { e.preventDefault(); if (id !== dragId) setOverId(id) }}
-                  onDrop={e => {
-                    e.preventDefault()
-                    if (!dragId || dragId === id) return
-                    const fi = ranked.indexOf(dragId), ti = ranked.indexOf(id)
-                    const nr = [...ranked]; nr.splice(fi, 1); nr.splice(ti, 0, dragId)
-                    setRanked(nr); setDragId(null); setOverId(null)
-                    onChange({ selected, ranked: nr })
-                  }}
-                  onDragEnd={() => { setDragId(null); setOverId(null) }}>
+                  onDrop={e => { e.preventDefault(); reorderByDrop(id) }}
+                  onDragEnd={() => { setDragId(null); setOverId(null) }}
+                >
                   <span className="rank-num">{i + 1}</span>
                   <span className="rank-txt">{o.label}</span>
                   <div className="rank-ctrls">

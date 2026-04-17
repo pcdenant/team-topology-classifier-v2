@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { QUESTION_DEFINITIONS } from '../engine'
 import MultiSelectRank from '../components/MultiSelectRank'
 import SingleChoice from '../components/SingleChoice'
@@ -7,22 +7,30 @@ import { C } from '../styles'
 
 const SEGMENTS = 5
 
-export default function QuizScreen({ questionId, answers, onAnswer, onBack, step, teamName }) {
-  const [local, setLocal] = useState(answers[questionId] ?? null)
-  const q = QUESTION_DEFINITIONS[questionId]
+function initialValue(q, existing) {
+  if (existing) return existing
+  if (q.type === 'rank_only') return { ranked: q.options.map(o => o.id) }
+  return null
+}
 
-  useEffect(() => { setLocal(answers[questionId] ?? null) }, [questionId])
+export default function QuizScreen({ questionId, answers, onAnswer, onBack, step, teamName }) {
+  const q = QUESTION_DEFINITIONS[questionId]
+  const [local, setLocal] = useState(() => initialValue(q, answers[questionId]))
 
   const ready = () => {
-    if (!local) return false
-    if (q.type === 'multiselect_rank') return local.selected?.length >= 1
-    if (q.type === 'rank_only') return true
-    return true
+    if (q.type === 'rank_only') return Boolean(local?.ranked?.length)
+    if (q.type === 'multiselect_rank') return Boolean(local?.selected?.length)
+    if (q.type === 'single_choice') return Boolean(local)
+    return false
   }
 
   const handleSingle = (val) => {
     setLocal(val)
-    setTimeout(() => onAnswer(questionId, val), 280)
+    onAnswer(questionId, val)
+  }
+
+  const handleContinue = () => {
+    if (ready()) onAnswer(questionId, local)
   }
 
   return (
@@ -64,7 +72,7 @@ export default function QuizScreen({ questionId, answers, onAnswer, onBack, step
             <div />
             <button
               className="btn btn-prim"
-              onClick={() => ready() && onAnswer(questionId, local)}
+              onClick={handleContinue}
               disabled={!ready()}
               type="button"
             >

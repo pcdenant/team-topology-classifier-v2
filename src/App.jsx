@@ -14,9 +14,17 @@ function genId() {
   return Math.random().toString(36).slice(2, 10)
 }
 
+function loadTeams() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return saved ? JSON.parse(saved) : []
+  } catch {
+    return []
+  }
+}
+
 export default function App() {
-  const [teams, setTeams] = useState([])
-  const [loaded, setLoaded] = useState(false)
+  const [teams, setTeams] = useState(loadTeams)
   const [screen, setScreen] = useState('home')
 
   // Quiz state
@@ -27,22 +35,11 @@ export default function App() {
 
   // ── Persistence ──────────────────────────────────────────────
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) setTeams(JSON.parse(saved))
-    } catch (e) { /* silent */ }
-    setLoaded(true)
-  }, [])
-
-  useEffect(() => {
-    if (!loaded) return
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(teams)) } catch (e) { /* silent */ }
-  }, [teams, loaded])
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(teams)) } catch { /* quota/serialization — ignore */ }
+  }, [teams])
 
   // ── Derived ───────────────────────────────────────────────────
   const activeTeam = teams.find(t => t.id === activeTeamId) ?? null
-  const completedTeams = teams.filter(t => t.result)
-  const pendingTeams = teams.filter(t => !t.result)
 
   // ── Team CRUD ─────────────────────────────────────────────────
   const addTeam = useCallback((name) => {
@@ -63,21 +60,10 @@ export default function App() {
     ))
   }, [])
 
-  const deleteTeam = useCallback((teamId) => {
-    setTeams(prev => {
-      const updated = prev.filter(t => t.id !== teamId)
-      // Remove refs to deleted team from other teams' deps
-      return updated.map(t => ({
-        ...t,
-        deps: (t.deps || []).filter(d => d.targetId !== teamId)
-      }))
-    })
-  }, [])
-
   const resetAll = useCallback(() => {
     setTeams([])
     setScreen('home')
-    try { localStorage.removeItem(STORAGE_KEY) } catch (e) { /* */ }
+    try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
   }, [])
 
   // ── Navigation: Start quiz for new team ───────────────────────
@@ -152,8 +138,6 @@ export default function App() {
   const goHome = useCallback(() => setScreen('home'), [])
   const goEcosystem = useCallback(() => setScreen('ecosystem'), [])
 
-  if (!loaded) return null
-
   return (
     <div className="app-shell">
       <Sidebar
@@ -171,13 +155,13 @@ export default function App() {
             onStartNew={startNewTeam}
             onViewTeam={viewTeamResult}
             onEvalTeam={startExistingTeam}
-            onDeleteTeam={deleteTeam}
             onGoEcosystem={goEcosystem}
             onReset={resetAll}
           />
         )}
         {screen === 'quiz' && (
           <QuizScreen
+            key={`${activeTeamId}:${qId}`}
             questionId={qId}
             answers={answers}
             onAnswer={answer}
