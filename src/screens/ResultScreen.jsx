@@ -1,5 +1,6 @@
-import { C, TYPE_CLR, CLAR_CLR, badge } from '../styles'
+import { C, TYPE_CLR, badge } from '../styles'
 import {
+  TEAM_TYPES,
   TYPE_META, CONFIDENCE_META, ALERT_META, SECONDARY_META,
   getSecondaryKey
 } from '../engine'
@@ -10,10 +11,11 @@ const CONF_BARS  = { high: 3, medium: 2, low: 1 }
 const CONF_CLR   = { high: C.vert, medium: C.warning, low: C.danger }
 
 export default function ResultScreen({ result, onContinue, onEdit, onGoHome }) {
-  const { type, confidence, secondarySignals, alerts, teamName } = result
-  const meta      = TYPE_META[type]
+  const { type, confidence, secondarySignals = [], alerts = [], teamName } = result
+  // Fallback on HYBRID for unknown types (stale localStorage, engine drift) — never crash.
+  const meta      = TYPE_META[type] ?? TYPE_META[TEAM_TYPES.HYBRID]
   const typeColor = TYPE_CLR[type] ?? C.textLight
-  const confColor = CONF_CLR[confidence]
+  const confColor = CONF_CLR[confidence] ?? C.textLight
 
   const exportMD = () => {
     const lines = [
