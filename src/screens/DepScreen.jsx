@@ -8,7 +8,7 @@ const TYPE_LABEL = {
 
 const MODES = [
   { id: 'roule',  label: '🟢 Ça roule',  desc: 'Auto-service, pas de friction',      clr: C.vert },
-  { id: 'frotte', label: '🟡 Ça frotte', desc: 'Collaboration mais lente ou complexe', clr: C.warning },
+  { id: 'frotte', label: '🔍 Ça frotte', desc: 'Un signal — à interpréter',             clr: C.warning },
   { id: 'bloque', label: '🔴 Ça bloque', desc: 'Dépendance qui ralentit livraison',    clr: C.danger },
 ]
 

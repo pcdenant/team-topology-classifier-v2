@@ -162,3 +162,13 @@ export const LK = {
   borderBottom:   `1px dotted ${C.vert}44`,
   cursor:         'pointer',
 }
+
+// ─── Transition hint (M1) ──────────────────────────────────────
+export const transitionHint = {
+  fontSize:     '0.85rem',
+  color:        '#6B7280',
+  fontStyle:    'italic',
+  marginTop:    '0.5rem',
+  marginBottom: '1.25rem',
+  lineHeight:   1.5,
+}
