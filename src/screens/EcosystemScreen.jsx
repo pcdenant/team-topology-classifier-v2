@@ -10,7 +10,7 @@ const CONF_CLR   = { high: C.vert, medium: C.warning, low: C.danger }
 const CONF_BG    = { high: C.vertLight, medium: C.warningBg, low: C.dangerBg }
 const MODE_META  = {
   roule:  { label: 'Ça roule',  clr: C.vert,    icon: '🟢' },
-  frotte: { label: 'Ça frotte', clr: C.warning, icon: '🟡' },
+  frotte: { label: 'Signal',    clr: C.warning, icon: '🔍' },
   bloque: { label: 'Ça bloque', clr: C.danger,  icon: '🔴' },
 }
 const TT_TYPES = ['stream_aligned', 'platform', 'enabling', 'complicated_subsystem']
@@ -43,6 +43,11 @@ function detectDiagnostics(teams) {
 
   if (plCount + enCount + csCount > saCount && saCount > 0)
     diags.push({ sev: 'warning', msg: 'Ratio inversé — plus d\'équipes support que Stream-aligned', action: 'Réévaluer la structure. Les équipes support doivent servir les Stream-aligned, pas l\'inverse.' })
+
+  // Multi-frotte detection
+  const frotteRelations = teams.flatMap(t => (t.deps || []).filter(d => d.mode === 'frotte'))
+  if (frotteRelations.length >= 3)
+    diags.push({ sev: 'warning', icon: '🔍', msg: `${frotteRelations.length} signaux organisationnels détectés`, action: 'Ces frictions indiquent probablement des frontières à clarifier ou des capacités manquantes. La Partie 2 analysera ces signaux en détail.' })
 
   // Goulot detection
   const depCounts = {}
@@ -205,7 +210,7 @@ export default function EcosystemScreen({ teams, onViewTeam, onGoHome, onAddTeam
             {diags.map((d, i) => (
               <div key={i} className={`flag flag-${d.sev === 'info' ? 'info' : d.sev === 'warning' ? 'warning' : 'danger'}`}>
                 <div className="flag-title">
-                  {d.sev === 'danger' ? '🔴' : d.sev === 'warning' ? '🟡' : '🔵'} {d.msg}
+                  {d.icon ?? (d.sev === 'danger' ? '🔴' : d.sev === 'warning' ? '🟡' : '🔵')} {d.msg}
                 </div>
                 <div className="flag-body">→ {d.action}</div>
               </div>

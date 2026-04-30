@@ -1,4 +1,4 @@
-import { C, TYPE_CLR, badge } from '../styles'
+import { C, TYPE_CLR, badge, transitionHint } from '../styles'
 import {
   TEAM_TYPES,
   TYPE_META, CONFIDENCE_META, ALERT_META, SECONDARY_META,
@@ -95,6 +95,12 @@ export default function ResultScreen({ result, onContinue, onEdit, onGoHome }) {
           <p className="clarity-desc">{CONFIDENCE_META[confidence]?.description}</p>
         </div>
       </div>
+
+      {/* M1 — Phrase de transition */}
+      <p style={transitionHint}>
+        Le type identifie <strong>où tu es</strong>.
+        Tes interactions révèlent <strong>pourquoi ça coince</strong>.
+      </p>
 
       {/* Secondary signals */}
       {secondarySignals.length > 0 && (
