@@ -421,3 +421,145 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
 
   return { type: null, label: "Type non reconnu", priority: null, enablingTeam: 'Non pertinente', confidence: 'faible', message: null };
 }
+
+// ─── generateActionPlan ───────────────────────────────────────────
+const QUICK_WIN_RULES = {
+  'T-L2-04': {
+    titre: "Cartographier les dépendances bloquantes avec les équipes concernées",
+    critere: "Chaque dépendance a un propriétaire identifié et une date de résolution",
+  },
+  'T-L2-01b': {
+    titre: "Cartographier les dépendances bloquantes avec les équipes concernées",
+    critere: "Chaque dépendance a un propriétaire identifié et une date de résolution",
+  },
+  'T-L1-01': {
+    titre: "Identifier les 3 demandes les plus fréquentes et documenter leur mode d'accès actuel",
+    critere: "Un document partagé liste les demandes avec leur fréquence et le temps de traitement moyen",
+  },
+  'T-L1-02': {
+    titre: "Lister les livrables produits et identifier lesquels pourraient être faits par les équipes elles-mêmes",
+    critere: "Chaque livrable a une note : transférable / non transférable + pourquoi",
+  },
+  'T-L1-03': {
+    titre: "Organiser une session de 30 minutes avec le manager pour répondre : quel problème métier disparaîtrait si l'équipe cessait d'exister ?",
+    critere: "Une phrase de mission — imparfaite est OK, inexistante ne l'est pas",
+  },
+  'T-L2-05': {
+    titre: "Lister les 5 dernières décisions de backlog — qui les a réellement prises ?",
+    critere: "La liste révèle le vrai décideur vs le décideur déclaré",
+  },
+  'T-L2-08': {
+    titre: "Nommer les 2 relations les plus frictionnelles et poser une question à chaque équipe : qu'est-ce qui nous ralentit dans notre collaboration ?",
+    critere: "Chaque équipe a répondu — même si les réponses se contredisent",
+  },
+};
+
+function generateActionPlan(futureState, triggers, cognitiveLoadGap, interactionGaps) {
+  const { dominantAxis } = cognitiveLoadGap;
+
+  // Quick wins — iterate displayed triggers, cap at 3, dedupe bloque actions
+  const seen = new Set();
+  const quickWins = [];
+  for (const trigger of triggers.displayed) {
+    const qw = QUICK_WIN_RULES[trigger.id];
+    if (!qw) continue;
+    const dedupeKey = (trigger.id === 'T-L2-04' || trigger.id === 'T-L2-01b') ? 'bloque' : trigger.id;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    quickWins.push({
+      titre:   qw.titre,
+      critere: qw.critere,
+      source:  `${trigger.id} — confiance : ${trigger.confiance}`,
+      horizon: '48h',
+    });
+    if (quickWins.length >= 3) break;
+  }
+
+  // Structural checklist
+  const structural = [];
+  let priorite = 1;
+
+  if (futureState.enablingTeam === 'Recommandée') {
+    structural.push({
+      action: "Activer une Enabling team de transition",
+      priorite: priorite++,
+      condition: "Enabling team recommandée pour accompagner la transition",
+    });
+  }
+
+  if (dominantAxis === 'extraneous') {
+    structural.push({
+      action: "Réduire la charge extrinsèque — clarifier les frontières d'équipe et réduire les interruptions",
+      priorite: priorite++,
+      condition: "Axe extrinsèque dominant",
+    });
+  } else if (dominantAxis === 'intrinsic') {
+    structural.push({
+      action: "Documenter et structurer la connaissance critique — réduire la complexité perçue",
+      priorite: priorite++,
+      condition: "Axe intrinsèque dominant",
+    });
+  } else if (dominantAxis === 'germane') {
+    structural.push({
+      action: "Créer des espaces protégés pour le travail de fond — réduire les interruptions non planifiées",
+      priorite: priorite++,
+      condition: "Axe germinale insuffisant",
+    });
+  }
+
+  for (const t of triggers.all.filter(t => t.niveau === 1)) {
+    if (t.id === 'T-L1-01')
+      structural.push({ action: "Mettre en place un accès self-service pour les services les plus sollicités", priorite: priorite++, condition: "Goulot d'étranglement détecté" });
+    if (t.id === 'T-L1-02')
+      structural.push({ action: "Redéfinir chaque engagement Enabling avec une date de fin explicite", priorite: priorite++, condition: "Enabling drift détecté" });
+    if (t.id === 'T-L1-03')
+      structural.push({ action: "Formaliser la mission de l'équipe avec la direction — une phrase, pas une liste", priorite: priorite++, condition: "Mission non définie" });
+  }
+
+  structural.splice(5);
+
+  // Systemic — 3 fixed steps
+  const systemic = [
+    { etape: 1, titre: "Stabiliser", description: "Stabiliser les interactions — cible : modes fluides sur toutes les dépendances actives" },
+    { etape: 2, titre: "Formaliser", description: "Formaliser le Team API — rendre les interfaces explicites et accessibles" },
+    { etape: 3, titre: "Réévaluer", description: "Réévaluer la topologie dans 6 mois — relancer la Partie 1 avec les mêmes équipes" },
+  ];
+
+  return { quickWins, structural, systemic };
+}
+
+// ─── prefillTeamApi ───────────────────────────────────────────────
+function prefillTeamApi(team, futureState, interactionGaps) {
+  const { answers, deps = [], result } = team;
+  const missionRaw    = dominant(answers.q1?.ranked);
+  const outputsRaw    = answers.q2?.selected ?? [];
+  const modeAccesRaw  = answers.q3c;
+
+  return {
+    nom:         { value: team.name,                                           status: 'complete', editable: false },
+    typeActuel:  { value: TYPE_META[result.type]?.label ?? result.type,        status: 'complete', editable: false },
+    typeCible:   { value: futureState.type,                                    status: 'complete', editable: false },
+    mission:     { value: missionRaw ?? null,                                  status: missionRaw    ? 'partial' : 'empty', editable: true },
+    outputs:     { value: outputsRaw,                                          status: outputsRaw.length > 0 ? 'partial' : 'empty', editable: true },
+    modeAcces:   { value: modeAccesRaw ?? null,                                status: modeAccesRaw !== undefined ? 'partial' : 'empty', editable: true },
+    partenaires: { value: interactionGaps,                                     status: deps.length > 0 ? 'complete' : 'empty', editable: false },
+    alertes:     { value: result.alerts.map(a => ALERT_META[a]?.title ?? a),   status: 'complete', editable: false },
+    slo:         { value: null, status: 'empty', editable: true },
+    cadence:     { value: null, status: 'empty', editable: true },
+    contact:     { value: null, status: 'empty', editable: true },
+  };
+}
+
+// ─── derivePart2 — public API ─────────────────────────────────────
+export function derivePart2(team, teams = []) {
+  const { answers, deps = [], result } = team;
+
+  const triggers         = detectTriggers(result, deps, answers, team.id, teams);
+  const cognitiveLoadGap = computeCognitiveLoad(answers, deps, result);
+  const interactionGaps  = analyzeInteractions(deps, result, teams);
+  const futureState      = recommendFutureState(result, triggers, cognitiveLoadGap);
+  const actionPlan       = generateActionPlan(futureState, triggers, cognitiveLoadGap, interactionGaps);
+  const teamApiDraft     = prefillTeamApi(team, futureState, interactionGaps);
+
+  return { triggers, cognitiveLoadGap, interactionGaps, futureState, actionPlan, teamApiDraft };
+}
