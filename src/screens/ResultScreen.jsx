@@ -10,7 +10,7 @@ const CONF_LABEL = { high: 'Claire', medium: 'Brouillée', low: 'Absente' }
 const CONF_BARS  = { high: 3, medium: 2, low: 1 }
 const CONF_CLR   = { high: C.vert, medium: C.warning, low: C.danger }
 
-export default function ResultScreen({ result, onContinue, onEdit, onGoHome }) {
+export default function ResultScreen({ result, onContinue, onEdit, onGoHome, onGoFutureState }) {
   const { type, confidence, secondarySignals = [], alerts = [], teamName } = result
   // Fallback on HYBRID for unknown types (stale localStorage, engine drift) — never crash.
   const meta      = TYPE_META[type] ?? TYPE_META[TEAM_TYPES.HYBRID]
@@ -178,7 +178,10 @@ export default function ResultScreen({ result, onContinue, onEdit, onGoHome }) {
               <span key={x} className="p2-item">{x}</span>
             ))}
           </div>
-          <button className="btn btn-ghost" disabled style={{ opacity: 0.5 }}>Phase 2 — Bientôt disponible</button>
+          {onGoFutureState
+            ? <button className="btn btn-prim" onClick={onGoFutureState}>Phase 2 — État cible →</button>
+            : <button className="btn btn-ghost" disabled style={{ opacity: 0.5 }}>Phase 2 — Bientôt disponible</button>
+          }
         </div>
       </div>
 
