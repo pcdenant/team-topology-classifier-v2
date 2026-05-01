@@ -7,6 +7,7 @@ import ResultScreen from './screens/ResultScreen'
 import DepScreen from './screens/DepScreen'
 import EcosystemScreen from './screens/EcosystemScreen'
 import FutureStateScreen from './screens/FutureStateScreen'
+import ActionPlanScreen from './screens/ActionPlanScreen'
 import './styles/main.css'
 
 const STORAGE_KEY = 'tt-classifier-teams-v2'
@@ -141,10 +142,10 @@ export default function App() {
     setScreen('future-state')
   }, [activeTeamId, updateTeamDeps])
 
-  // ── Future-state: confirm and go home ─────────────────────────
+  // ── Future-state: confirm and go to action plan ───────────────
   const confirmFutureState = useCallback((futureState) => {
     updateTeamPart2(activeTeamId, { futureState })
-    setScreen('home')
+    setScreen('action-plan')
   }, [activeTeamId, updateTeamPart2])
 
   const goToFutureState = useCallback(() => setScreen('future-state'), [])
@@ -207,6 +208,14 @@ export default function App() {
             teams={teams}
             onConfirm={confirmFutureState}
             onBack={() => setScreen('result')}
+          />
+        )}
+        {screen === 'action-plan' && activeTeam?.result && (
+          <ActionPlanScreen
+            team={activeTeam}
+            teams={teams}
+            onGoHome={goHome}
+            onBack={() => setScreen('future-state')}
           />
         )}
         {screen === 'ecosystem' && (
