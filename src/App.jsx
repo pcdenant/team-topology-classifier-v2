@@ -6,6 +6,7 @@ import QuizScreen from './screens/QuizScreen'
 import ResultScreen from './screens/ResultScreen'
 import DepScreen from './screens/DepScreen'
 import EcosystemScreen from './screens/EcosystemScreen'
+import FutureStateScreen from './screens/FutureStateScreen'
 import './styles/main.css'
 
 const STORAGE_KEY = 'tt-classifier-teams-v2'
@@ -57,6 +58,12 @@ export default function App() {
   const updateTeamDeps = useCallback((teamId, deps) => {
     setTeams(prev => prev.map(t =>
       t.id === teamId ? { ...t, deps } : t
+    ))
+  }, [])
+
+  const updateTeamPart2 = useCallback((teamId, part2) => {
+    setTeams(prev => prev.map(t =>
+      t.id === teamId ? { ...t, part2 } : t
     ))
   }, [])
 
@@ -128,11 +135,19 @@ export default function App() {
     }
   }, [teams, activeTeamId])
 
-  // ── Dep screen: save and go home ──────────────────────────────
+  // ── Dep screen: save and go to future-state ───────────────────
   const saveDeps = useCallback((deps) => {
     updateTeamDeps(activeTeamId, deps)
-    setScreen('home')
+    setScreen('future-state')
   }, [activeTeamId, updateTeamDeps])
+
+  // ── Future-state: confirm and go home ─────────────────────────
+  const confirmFutureState = useCallback((futureState) => {
+    updateTeamPart2(activeTeamId, { futureState })
+    setScreen('home')
+  }, [activeTeamId, updateTeamPart2])
+
+  const goToFutureState = useCallback(() => setScreen('future-state'), [])
 
   // ── Sidebar props ─────────────────────────────────────────────
   const goHome = useCallback(() => setScreen('home'), [])
@@ -176,6 +191,7 @@ export default function App() {
             onContinue={afterResult}
             onEdit={() => startExistingTeam(activeTeamId)}
             onGoHome={goHome}
+            onGoFutureState={goToFutureState}
           />
         )}
         {screen === 'dep' && (
@@ -183,6 +199,14 @@ export default function App() {
             team={activeTeam}
             otherTeams={teams.filter(t => t.id !== activeTeamId && t.result)}
             onSave={saveDeps}
+          />
+        )}
+        {screen === 'future-state' && activeTeam?.result && (
+          <FutureStateScreen
+            team={activeTeam}
+            teams={teams}
+            onConfirm={confirmFutureState}
+            onBack={() => setScreen('result')}
           />
         )}
         {screen === 'ecosystem' && (
