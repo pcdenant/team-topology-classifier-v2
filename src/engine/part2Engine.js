@@ -249,3 +249,175 @@ function computeCognitiveLoad(answers, deps, result) {
 
   return { intrinsic, extraneous, germane, germaneFragmented, dataQuality, dominantAxis };
 }
+
+// ─── analyzeInteractions ──────────────────────────────────────────
+const INTERACTION_RULES = {
+  bloque: {
+    recommended: "Collaboration immédiate",
+    rationale: "Ce blocage coûte du throughput à chaque sprint. Une session de clarification des frontières est urgente avant tout autre chantier.",
+  },
+  frotte: {
+    recommended: "Frontière à clarifier",
+    rationale: "La friction régulière signale une frontière floue ou une capacité manquante d'un côté ou de l'autre. À diagnostiquer avant que ça devienne un blocage.",
+  },
+  roule: {
+    recommended: "Protéger ce mode",
+    rationale: "Cette relation fonctionne. Documenter ce qui la rend fluide pour reproduire le pattern ailleurs.",
+  },
+};
+
+function analyzeInteractions(deps, result, teams) {
+  if (!deps || deps.length === 0) return [];
+
+  return deps.map(dep => {
+    const target = teams.find(t => t.id === dep.targetId);
+    const rule = INTERACTION_RULES[dep.mode] ?? INTERACTION_RULES.roule;
+    return {
+      teamId:      dep.targetId,
+      teamName:    target?.name ?? dep.targetId,
+      teamType:    target?.result?.type ?? null,
+      current:     dep.mode,
+      recommended: rule.recommended,
+      rationale:   rule.rationale,
+    };
+  });
+}
+
+// ─── recommendFutureState ─────────────────────────────────────────
+function recommendFutureState(result, triggers, cognitiveLoadGap) {
+  if (result.confidence === 'low') {
+    return {
+      type: null,
+      label: "Diagnostic incomplet",
+      priority: null,
+      enablingTeam: 'Recommandée',
+      confidence: 'faible',
+      message: "Les signaux sont insuffisants pour une recommandation fiable. La Partie 2 peut quand même vous aider à lire vos interactions.",
+    };
+  }
+
+  const triggerDominantId = triggers.all[0]?.id ?? null;
+  const { dominantAxis } = cognitiveLoadGap;
+  const hasTrigger = (id) => triggers.all.some(t => t.id === id);
+
+  const rule = (type, label, priority, enablingTeam, confidence) =>
+    ({ type, label, priority, enablingTeam, confidence, message: null });
+
+  if (result.type === 'stream_aligned') {
+    if (triggerDominantId === 'T-L2-04')
+      return rule('stream_aligned', "SA en urgence",
+        "Intervention immédiate sur les interfaces — l'équipe ne peut pas livrer dans cet état",
+        'Recommandée', 'fort');
+    if (triggerDominantId === 'T-L1-03')
+      return rule('stream_aligned', "SA à clarifier",
+        "Définir le domaine avant tout arbitrage de backlog",
+        'Recommandée', 'moyen');
+    if (triggerDominantId === 'T-L2-01b')
+      return rule('stream_aligned', "SA autonome",
+        "Résoudre les dépendances bloquantes avant tout changement structurel",
+        'Optionnelle', 'fort');
+    if (triggerDominantId === 'T-L2-05')
+      return rule('stream_aligned', "SA avec ownership",
+        "Reprendre l'arbitrage du backlog — arrêter la réactivité comme mode par défaut",
+        'Recommandée', 'fort');
+    if (triggerDominantId === 'T-L2-03b' && result.secondarySignals.includes('platform'))
+      return rule('platform', "SA → Platform émergente",
+        "Identifier les services stables rendus aux autres équipes et les extraire progressivement",
+        'Recommandée', 'moyen');
+    if (triggerDominantId === 'T-L2-08')
+      return rule('stream_aligned', "SA fluidifiée",
+        "Clarifier les frontières avec les équipes sources de friction — cartographier avant d'agir",
+        'Optionnelle', 'moyen');
+    // SA-1 — no trigger
+    return rule('stream_aligned', "SA confirmée",
+      "Protéger l'ownership du domaine — documenter les frontières",
+      'Optionnelle', 'fort');
+  }
+
+  if (result.type === 'platform') {
+    // PL-5: T-L1-01 dominant AND T-L2-08 also active
+    if (triggerDominantId === 'T-L1-01' && hasTrigger('T-L2-08'))
+      return rule('platform', "Platform en transition",
+        "Le goulot et la friction coexistent — l'ordre est : self-service d'abord, SLA ensuite",
+        'Optionnelle', 'fort');
+    if (triggerDominantId === 'T-L1-01')
+      return rule('platform', "Platform produit",
+        "Passer à l'accès self-service avant toute réorganisation",
+        'Optionnelle', 'fort');
+    if (triggerDominantId === 'T-L2-03b' && dominantAxis === 'germane')
+      return rule('platform', "Platform + Enabling à séparer",
+        "Séparer explicitement les missions de service et d'accompagnement",
+        'Recommandée', 'moyen');
+    if (triggerDominantId === 'T-L2-01b')
+      return rule('platform', "Platform déchargée",
+        "Réduire la surface de contact — toutes les demandes ne méritent pas le même niveau de service",
+        'Optionnelle', 'moyen');
+    // PL-1 — no trigger
+    return rule('platform', "Platform confirmée",
+      "Mesurer l'adoption self-service — c'est le seul indicateur qui compte",
+      'Optionnelle', 'fort');
+  }
+
+  if (result.type === 'enabling') {
+    if (triggerDominantId === 'T-L1-02')
+      return rule('enabling', "Enabling clarifiée",
+        "Arrêter la livraison directe — redéfinir chaque engagement avec une date de fin",
+        'Non pertinente', 'fort');
+    if (triggerDominantId === 'T-L2-01b')
+      return rule('enabling', "Enabling + exit accéléré",
+        "Planifier le désengagement sur les missions bloquées en priorité",
+        'Non pertinente', 'moyen');
+    if (triggerDominantId === 'T-L2-03b')
+      return rule('enabling', "Enabling spécialisée",
+        "Concentrer la mission sur un domaine de compétence — pas tout pour tout le monde",
+        'Non pertinente', 'moyen');
+    // EN-1 — no trigger
+    return rule('enabling', "Enabling confirmée",
+      "Vérifier que chaque mission a un exit plan explicite",
+      'Non pertinente', 'fort');
+  }
+
+  if (result.type === 'complicated_subsystem') {
+    if (triggerDominantId === 'T-L2-06')
+      return rule('complicated_subsystem', "CS protégée",
+        "Formaliser une interface claire vers les équipes dépendantes — réduire les demandes informelles",
+        'Optionnelle', 'moyen');
+    if (triggerDominantId === 'T-L2-13')
+      return rule('platform', "CS → Platform",
+        "Évaluer ce qui peut être exposé en self-service sans perdre la maîtrise du domaine",
+        'Recommandée', 'moyen');
+    if (triggerDominantId === 'T-L2-01b')
+      return rule('complicated_subsystem', "CS avec interfaces",
+        "Clarifier qui peut accéder à quoi — pas tout le sous-système n'est également critique",
+        'Optionnelle', 'fort');
+    // CS-1 — no trigger
+    return rule('complicated_subsystem', "CS consolidée",
+      "Documenter et protéger la connaissance — la concentration de savoir est le risque principal",
+      'Non pertinente', 'fort');
+  }
+
+  if (result.type === 'hybrid') {
+    if (triggerDominantId === 'T-L2-02')
+      return rule(null, "Diagnostic incomplet",
+        "L'outil ne peut pas trancher — une conversation avec un coach est la meilleure prochaine étape",
+        'Recommandée', 'faible');
+    if (triggerDominantId === 'T-L1-03')
+      return rule(null, "Mission à construire",
+        "Clarifier la mission avant de parler de topologie — le type viendra ensuite",
+        'Recommandée', 'moyen');
+    if (triggerDominantId === 'T-L2-09')
+      return rule('stream_aligned', "SA probable",
+        "Les signaux pointent vers un domaine — le tester explicitement avant de réorganiser",
+        'Recommandée', 'moyen');
+    if (triggerDominantId === 'T-L2-07')
+      return rule(null, "Conversation requise",
+        "Le parcours était trop court pour conclure — relancer le diagnostic avec plus de contexte",
+        'Recommandée', 'faible');
+    // HY default
+    return rule(null, "Diagnostic incomplet",
+      "L'outil ne peut pas trancher — une conversation avec un coach est la meilleure prochaine étape",
+      'Recommandée', 'faible');
+  }
+
+  return { type: null, label: "Type non reconnu", priority: null, enablingTeam: 'Non pertinente', confidence: 'faible', message: null };
+}
