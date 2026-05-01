@@ -229,6 +229,39 @@ describe('T-L2-04 absorbe T-L2-01b', () => {
   });
 });
 
+// ─── germaneFragmented — condition opérationnelle (Gap 3.2) ──────────────────
+
+describe('germaneFragmented — respond dominant → false', () => {
+  // q4 reached + hybrid type, but respond is a clear dominant → NOT fragmented
+  const team = mkTeam('gf1', 'Hybrid respond',
+    { q4: ro(['respond', 'domain', 'initiative']) },
+    [],
+    mkResult('hybrid', 'medium'),
+  );
+  const { cognitiveLoadGap } = derivePart2(team, []);
+
+  it('germaneFragmented est false (respond domine → pas équivalent)', () => {
+    expect(cognitiveLoadGap.germaneFragmented).toBe(false);
+  });
+  it('germane se calcule normalement — 0 protecteur → FAIBLE', () => {
+    expect(cognitiveLoadGap.germane).toBe('FAIBLE');
+  });
+});
+
+describe('germaneFragmented — q4 non atteinte → false', () => {
+  // q4 undefined → germaneFragmented must be false regardless of type
+  const team = mkTeam('gf2', 'SA sans q4',
+    { q1: ms(['A']), q1b: 'us' },
+    [],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { cognitiveLoadGap } = derivePart2(team, []);
+
+  it('germaneFragmented est false (q4 non atteinte)', () => {
+    expect(cognitiveLoadGap.germaneFragmented).toBe(false);
+  });
+});
+
 describe('derivePart2 — deps undefined safe', () => {
   it('fonctionne sans deps', () => {
     const team = { id: 't', name: 'T', answers: {}, result: mkResult('stream_aligned', 'high') };

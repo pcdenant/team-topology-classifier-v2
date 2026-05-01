@@ -214,8 +214,11 @@ function computeCognitiveLoad(answers, deps, result) {
   if (dominant(answers.q2?.ranked) === '2' && answers.q3 === 'autonomous')
     germaneSignals.push({ poids: 1 });
 
-  // Q4 reached with no discriminating result → hybrid type → fragmented germane
-  const germaneFragmented = answers.q4 !== undefined && result.type === 'hybrid';
+  // Q4 reached + hybrid type, but respond-dominant is still a clear signal (not fragmented)
+  const germaneFragmented =
+    answers.q4 !== undefined &&
+    result.type === 'hybrid' &&
+    dominant(answers.q4?.ranked) !== 'respond';
 
   const intrinsic  = computeCharge(intrinsicSignals);
   const extraneous = computeCharge(extraneousSignals);
