@@ -645,3 +645,219 @@ describe('Gap 7.1 — outputs : status partial basé sur existence de q2 (pas lo
     expect(teamApiDraft.outputs.status).toBe('partial');
   });
 });
+
+// ════════════════════════════════════════════════════════════════
+// Étape 8 — Validation actionPlan + teamApiDraft par persona
+// spec: P2-phase1-implementationplan.md §étape-8
+// ════════════════════════════════════════════════════════════════
+
+describe('Étape 8 — Persona 1 : SA confirmée (no triggers, G=ÉLEVÉ)', () => {
+  const team = mkTeam('p1', 'SA claire',
+    { q1: ms(['A', 'C']), q1b: 'us' },
+    [{ targetId: 'x', mode: 'roule' }, { targetId: 'y', mode: 'roule' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { actionPlan, teamApiDraft } = derivePart2(team, [team]);
+
+  // dominantAxis=null (G=ÉLEVÉ ne déclenche pas d'item), enablingTeam=Optionnelle
+  // → 0 conditions remplies → 2 fallbacks stream_aligned
+  it('quickWins vide (aucun trigger mappé)', () => {
+    expect(actionPlan.quickWins).toHaveLength(0);
+  });
+  it('structural : fallbacks stream_aligned (frontières du domaine)', () => {
+    expect(actionPlan.structural[0].action).toContain('frontières du domaine');
+  });
+  it('systemic : 3 étapes fixes', () => {
+    expect(actionPlan.systemic).toHaveLength(3);
+    expect(actionPlan.systemic[0].titre).toBe('Stabiliser');
+  });
+  it('teamApiDraft : alertes empty (aucune alerte)', () => {
+    expect(teamApiDraft.alertes.status).toBe('empty');
+  });
+  it('teamApiDraft : typeCible complete (SA confirmée)', () => {
+    expect(teamApiDraft.typeCible.status).toBe('complete');
+    expect(teamApiDraft.typeCible.value).toBe('Équipe orientée valeur');
+  });
+  it('teamApiDraft : mission label lisible (pas "A")', () => {
+    expect(teamApiDraft.mission.value).toContain('domaine ou processus métier');
+  });
+});
+
+describe('Étape 8 — Persona 2 : SA avec ownership (T-L2-05, E=ÉLEVÉ, Enabling=Recommandée)', () => {
+  const team = mkTeam('p2', 'SA incoming',
+    { q1: ms(['A', 'C']), q1b: 'incoming', q3: 'operational' },
+    [],
+    mkResult('stream_aligned', 'medium'),
+  );
+  const { actionPlan, teamApiDraft } = derivePart2(team, []);
+
+  it('quickWins[0] : T-L2-05 — backlog', () => {
+    expect(actionPlan.quickWins[0].source).toBe('T-L2-05 — moyen');
+    expect(actionPlan.quickWins[0].titre).toContain('décisions de backlog');
+  });
+  it('structural[0] : Enabling team en position 1 (Recommandée)', () => {
+    expect(actionPlan.structural[0].action).toContain('Enabling team');
+    expect(actionPlan.structural[0].priorite).toBe(1);
+  });
+  it('structural[1] : axe extrinsèque', () => {
+    expect(actionPlan.structural[1].action).toContain('interruptions entrantes');
+  });
+  it('structural ≥ 3 items', () => {
+    expect(actionPlan.structural.length).toBeGreaterThanOrEqual(3);
+  });
+  it('teamApiDraft : alertes empty (aucune alerte)', () => {
+    expect(teamApiDraft.alertes.status).toBe('empty');
+  });
+});
+
+describe('Étape 8 — Persona 3 : SA autonome (T-L2-01b, 2 bloque + 1 roule)', () => {
+  const team = mkTeam('p3', 'SA bloquée',
+    { q1: ms(['A']) },
+    [
+      { targetId: 'a', mode: 'bloque' },
+      { targetId: 'b', mode: 'bloque' },
+      { targetId: 'c', mode: 'roule' },
+    ],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { actionPlan, teamApiDraft } = derivePart2(team, []);
+
+  it('quickWins[0] : T-L2-01b — dépendances bloquantes', () => {
+    expect(actionPlan.quickWins[0].source).toBe('T-L2-01b — fort');
+    expect(actionPlan.quickWins[0].titre).toContain('dépendances bloquantes');
+  });
+  it('structural[0] : axe extrinsèque (enablingTeam=Optionnelle)', () => {
+    expect(actionPlan.structural[0].action).toContain('interruptions entrantes');
+  });
+  it('structural : items bloque pour a et b', () => {
+    const bloques = actionPlan.structural.filter(i => i.action.includes('Résoudre le blocage'));
+    expect(bloques).toHaveLength(2);
+  });
+  it('structural : 3 items exacts (axis + 2 bloque)', () => {
+    expect(actionPlan.structural).toHaveLength(3);
+  });
+  it('teamApiDraft : partenaires 3 entrées (2 bloque + 1 roule)', () => {
+    expect(teamApiDraft.partenaires.value).toHaveLength(3);
+  });
+});
+
+describe('Étape 8 — Persona 4 : Platform produit (T-L1-01, E=ÉLEVÉ)', () => {
+  const team = mkTeam('p4', 'Platform goulot',
+    { q1: ms(['C']), q2: ms(['1']), q3: 'operational', q3b: 'majority', q3c: 'via_us' },
+    [],
+    mkResult('platform', 'high', ['bottleneck']),
+  );
+  const { actionPlan, teamApiDraft } = derivePart2(team, []);
+
+  it('quickWins[0] : T-L1-01 — 3 demandes fréquentes', () => {
+    expect(actionPlan.quickWins[0].source).toBe('T-L1-01 — fort');
+    expect(actionPlan.quickWins[0].titre).toContain('3 demandes les plus fréquentes');
+  });
+  it('structural : T-L1-01 item SLA', () => {
+    const item = actionPlan.structural.find(i => i.action.includes('SLA de réponse'));
+    expect(item).toBeDefined();
+  });
+  it('structural ≥ 3 items (axis + SLA + fallback platform)', () => {
+    expect(actionPlan.structural.length).toBeGreaterThanOrEqual(3);
+  });
+  it('teamApiDraft : alertes "Goulot d\'étranglement" — label court', () => {
+    expect(teamApiDraft.alertes.value[0]).toBe("Goulot d'étranglement");
+    expect(teamApiDraft.alertes.status).toBe('complete');
+  });
+  it('teamApiDraft : modeAcces label "Via l\'équipe"', () => {
+    expect(teamApiDraft.modeAcces.value).toContain("Via l'équipe");
+  });
+  it('teamApiDraft : typeCible "Équipe plateforme"', () => {
+    expect(teamApiDraft.typeCible.value).toBe('Équipe plateforme');
+  });
+});
+
+describe('Étape 8 — Persona 5 : Enabling clarifiée (T-L1-02, E=MODÉRÉ, G=MODÉRÉ)', () => {
+  const team = mkTeam('p5', 'Enabling drift',
+    { q1: ms(['C']), q2: ms(['3']), q3: 'autonomous' },
+    [],
+    mkResult('enabling', 'medium', ['enabling_drift']),
+  );
+  const { actionPlan, teamApiDraft } = derivePart2(team, []);
+
+  // dominantAxis=null (E=MODÉRÉ, I=FAIBLE, G=MODÉRÉ — aucun ÉLEVÉ ni G=FAIBLE)
+  it('quickWins[0] : T-L1-02 — livrables', () => {
+    expect(actionPlan.quickWins[0].source).toBe('T-L1-02 — fort');
+    expect(actionPlan.quickWins[0].titre).toContain('livrables produits');
+  });
+  it('structural[0] : T-L1-02 item (enablingTeam=Non pertinente, axis=null)', () => {
+    expect(actionPlan.structural[0].action).toContain('date de fin explicite');
+  });
+  it('structural : 3 items (T-L1-02 + 2 fallbacks enabling)', () => {
+    expect(actionPlan.structural).toHaveLength(3);
+    const fallback = actionPlan.structural.find(i => i.action.includes('équipes accompagnées'));
+    expect(fallback).toBeDefined();
+  });
+  it('teamApiDraft : alertes "Enabling en dérive"', () => {
+    expect(teamApiDraft.alertes.value[0]).toBe('Enabling en dérive');
+  });
+});
+
+describe('Étape 8 — Persona 6 : CS consolidée (I=ÉLEVÉ, no triggers)', () => {
+  const team = mkTeam('p6', 'CS isolée',
+    { q1: ms(['D']), q2: ms(['4']), q3b: 'few_critical' },
+    [],
+    mkResult('complicated_subsystem', 'high'),
+  );
+  const { actionPlan, teamApiDraft } = derivePart2(team, [team]);
+
+  it('quickWins vide (T-L2-06 sans card, 0 autres triggers)', () => {
+    expect(actionPlan.quickWins).toHaveLength(0);
+  });
+  it('structural[0] : axe intrinsèque (connaissance critique)', () => {
+    expect(actionPlan.structural[0].action).toContain('connaissance critique');
+  });
+  it('structural : 3 items (intrinsic + 2 fallbacks CS)', () => {
+    expect(actionPlan.structural).toHaveLength(3);
+    const busFactorItem = actionPlan.structural.find(i => i.action.includes('bus factor'));
+    expect(busFactorItem).toBeDefined();
+  });
+  it('teamApiDraft : alertes empty (aucune alerte)', () => {
+    expect(teamApiDraft.alertes.status).toBe('empty');
+  });
+  it('teamApiDraft : typeCible "Équipe sous-système"', () => {
+    expect(teamApiDraft.typeCible.value).toBe('Équipe sous-système');
+  });
+});
+
+describe('Étape 8 — Persona 7 : Diagnostic incomplet (T-L1-03+T-L2-02, confidence=low)', () => {
+  const team = mkTeam('p7', 'Hybride indéfini',
+    { q1: ms([]), q4: ro(['domain', 'respond', 'initiative']) },
+    [],
+    mkResult('hybrid', 'low', ['undefined_mission']),
+  );
+  const { actionPlan, teamApiDraft } = derivePart2(team, []);
+
+  // dominantAxis=germane (G=FAIBLE via germaneFragmented), enablingTeam=Recommandée
+  it('quickWins[0] : T-L1-03 — session 30 min (T-L2-02 skippé, pas de card)', () => {
+    expect(actionPlan.quickWins).toHaveLength(1);
+    expect(actionPlan.quickWins[0].source).toBe('T-L1-03 — fort');
+    expect(actionPlan.quickWins[0].titre).toContain('30 minutes');
+  });
+  it('structural[0] : Enabling team en position 1 (Recommandée)', () => {
+    expect(actionPlan.structural[0].action).toContain('Enabling team');
+    expect(actionPlan.structural[0].priorite).toBe(1);
+  });
+  it('structural[1] : axe germinale (temps de travail profond)', () => {
+    expect(actionPlan.structural[1].action).toContain('temps de travail profond');
+  });
+  it('structural[2] : T-L1-03 mission', () => {
+    expect(actionPlan.structural[2].action).toContain('phrase de mission');
+  });
+  it('structural : 3 items exacts (enabling + germane + T-L1-03)', () => {
+    expect(actionPlan.structural).toHaveLength(3);
+  });
+  it('teamApiDraft : typeCible empty (futureState.type=null)', () => {
+    expect(teamApiDraft.typeCible.status).toBe('empty');
+    expect(teamApiDraft.typeCible.value).toBeNull();
+  });
+  it('teamApiDraft : alertes "Mission non définie"', () => {
+    expect(teamApiDraft.alertes.value[0]).toBe('Mission non définie');
+    expect(teamApiDraft.alertes.status).toBe('complete');
+  });
+});
