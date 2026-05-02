@@ -262,6 +262,46 @@ describe('germaneFragmented — q4 non atteinte → false', () => {
   });
 });
 
+// ─── analyzeInteractions — gaps 4.1 / 4.3 ───────────────────────────────────
+
+describe('analyzeInteractions — mode inconnu → fallback explicite', () => {
+  // Gap 4.3: dep.mode non reconnu ne doit jamais produire recommended=undefined
+  const team = mkTeam('ai1', 'Fallback',
+    {},
+    [{ targetId: 'x', mode: 'unknown_mode' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { interactionGaps } = derivePart2(team, []);
+
+  it('recommended est une string (pas undefined)', () => {
+    expect(typeof interactionGaps[0].recommended).toBe('string');
+    expect(interactionGaps[0].recommended).toBe('Mode inconnu');
+  });
+  it('rationale est une string (pas undefined)', () => {
+    expect(typeof interactionGaps[0].rationale).toBe('string');
+  });
+  it('current conserve la valeur brute', () => {
+    expect(interactionGaps[0].current).toBe('unknown_mode');
+  });
+});
+
+describe('analyzeInteractions — teamType null si équipe cible absente', () => {
+  // Gap 4.2: teamType doit être null (pas undefined) si l'équipe n'est pas dans teams[]
+  const team = mkTeam('ai2', 'Orphelin',
+    {},
+    [{ targetId: 'absent', mode: 'roule' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { interactionGaps } = derivePart2(team, []);
+
+  it('teamType est null (pas undefined) si cible absente', () => {
+    expect(interactionGaps[0].teamType).toBeNull();
+  });
+  it('teamName replie sur targetId si cible absente', () => {
+    expect(interactionGaps[0].teamName).toBe('absent');
+  });
+});
+
 describe('derivePart2 — deps undefined safe', () => {
   it('fonctionne sans deps', () => {
     const team = { id: 't', name: 'T', answers: {}, result: mkResult('stream_aligned', 'high') };

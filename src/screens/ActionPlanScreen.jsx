@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { derivePart2 } from '../engine'
 import { C, badge } from '../styles'
+import { downloadMarkdownPart2 } from '../export/exportPart2'
 
 // ─── Constants ────────────────────────────────────────────────────
 const API_LABELS = {
@@ -243,8 +244,11 @@ export default function ActionPlanScreen({ team, teams, onGoHome, onBack }) {
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className="bento-1col">
-        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <button className="btn btn-sec" onClick={onBack}>← Retour</button>
+        <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-sec" onClick={onBack}>← Retour</button>
+            <button className="btn btn-tert" onClick={() => downloadMarkdownPart2(team, teams)}>↓ Markdown</button>
+          </div>
           <button className="btn btn-prim" onClick={onGoHome}>Accueil →</button>
         </div>
       </div>
