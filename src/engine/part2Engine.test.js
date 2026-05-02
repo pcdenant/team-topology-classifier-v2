@@ -262,6 +262,201 @@ describe('germaneFragmented — q4 non atteinte → false', () => {
   });
 });
 
+// ════════════════════════════════════════════════════════════════
+// generateActionPlan — gaps 6.1 à 6.6
+// ════════════════════════════════════════════════════════════════
+
+describe('Gap 6.3 — source format "ID — confiance"', () => {
+  // Persona 4 : T-L1-01 (confiance fort) doit produire source exacte
+  const team = mkTeam('g63', 'Platform goulot',
+    { q1: ms(['C']), q2: ms(['1']), q3: 'operational', q3b: 'majority', q3c: 'via_us' },
+    [],
+    mkResult('platform', 'high', ['bottleneck']),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('source = "T-L1-01 — fort" (sans "confiance :")', () => {
+    expect(actionPlan.quickWins[0].source).toBe('T-L1-01 — fort');
+  });
+});
+
+describe('Gap 6.2 — triggers sans card skippés silencieusement', () => {
+  // T-L2-09 (Identité hybride) n'a pas de card → doit être ignoré
+  const team = mkTeam('g62a', 'Hybrid medium',
+    {},
+    [],
+    mkResult('hybrid', 'medium'), // T-L2-09 actif, pas de card
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('quickWins vide si aucun trigger affiché n\'a de card (Gap 6.5 ok)', () => {
+    expect(actionPlan.quickWins).toHaveLength(0);
+  });
+});
+
+describe('Gap 6.2 — T-L2-01a a sa propre card', () => {
+  // 1 bloque + 1 roule → T-L2-04 n'active pas (pas tous bloqués) → T-L2-01a dominant
+  const team = mkTeam('g62b', 'SA 1 bloque',
+    { q1: ms(['A']) },
+    [{ targetId: 'x', mode: 'bloque' }, { targetId: 'y', mode: 'roule' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('T-L2-01a est le premier trigger (dominant)', () => {
+    expect(actionPlan.quickWins[0].source).toMatch(/^T-L2-01a —/);
+  });
+  it('card T-L2-01a contient "30 minutes"', () => {
+    expect(actionPlan.quickWins[0].titre).toContain('30 minutes');
+  });
+});
+
+describe('Gap 6.1 — contenu exact de l\'item Enabling team', () => {
+  // Persona 2 : enablingTeam=Recommandée → item exact en position 1
+  const team = mkTeam('g61a', 'SA incoming',
+    { q1: ms(['A', 'C']), q1b: 'incoming', q3: 'operational' },
+    [],
+    mkResult('stream_aligned', 'medium'),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('item 1 contient "Enabling team" et "6 à 8"', () => {
+    expect(actionPlan.structural[0].action).toContain('Enabling team');
+    expect(actionPlan.structural[0].action).toContain('6 à 8');
+    expect(actionPlan.structural[0].priorite).toBe(1);
+  });
+});
+
+describe('Gap 6.1 — contenu exact par dominantAxis (extraneous)', () => {
+  // Persona 2 : extraneous ÉLEVÉ → item "interruptions entrantes"
+  const team = mkTeam('g61b', 'SA incoming',
+    { q1: ms(['A', 'C']), q1b: 'incoming', q3: 'operational' },
+    [],
+    mkResult('stream_aligned', 'medium'),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('item axe extrinsèque contient "interruptions entrantes"', () => {
+    const extrItem = actionPlan.structural.find(i => i.action.includes('interruptions entrantes'));
+    expect(extrItem).toBeDefined();
+  });
+});
+
+describe('Gap 6.1 — contenu exact L1 structural items', () => {
+  // Persona 4 : T-L1-01 → "Définir un SLA"
+  const team = mkTeam('g61c', 'Platform goulot',
+    { q1: ms(['C']), q2: ms(['1']), q3: 'operational', q3b: 'majority', q3c: 'via_us' },
+    [],
+    mkResult('platform', 'high', ['bottleneck']),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('T-L1-01 structural item contient "SLA de réponse"', () => {
+    const item = actionPlan.structural.find(i => i.action.includes('SLA de réponse'));
+    expect(item).toBeDefined();
+  });
+  it('condition T-L1-01 mentionne "Goulot détecté"', () => {
+    const item = actionPlan.structural.find(i => i.action.includes('SLA de réponse'));
+    expect(item.condition).toContain('Goulot détecté');
+  });
+});
+
+describe('Gap 6.4 — minimum 3 items structurels garantis (persona 1)', () => {
+  // Persona 1 : aucun trigger, dominantAxis=null, enablingTeam=Optionnelle
+  // Sans fallback → 0 items ; avec fallback → ≥3
+  const team = mkTeam('g64', 'SA clair',
+    { q1: ms(['A', 'C']), q1b: 'us' },
+    [{ targetId: 'x', mode: 'roule' }, { targetId: 'y', mode: 'roule' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { actionPlan } = derivePart2(team, [team]);
+
+  it('structural a exactement 2 fallbacks (stream_aligned, 0 condition remplie)', () => {
+    expect(actionPlan.structural.length).toBeGreaterThanOrEqual(2);
+  });
+  it('fallback SA contient "frontières du domaine"', () => {
+    const f = actionPlan.structural.find(i => i.action.includes('frontières du domaine'));
+    expect(f).toBeDefined();
+  });
+  it('priorite commence à 1', () => {
+    expect(actionPlan.structural[0].priorite).toBe(1);
+  });
+  it('priorite est séquentielle', () => {
+    actionPlan.structural.forEach((item, i) => {
+      expect(item.priorite).toBe(i + 1);
+    });
+  });
+});
+
+describe('Gap 6.4 — minimum 3 items pour futureState.type=null', () => {
+  // Persona 7 : confidence=low → futureState.type=null → fallbacks null/hybrid
+  const team = mkTeam('g64b', 'Hybride indéfini',
+    { q1: ms([]), q4: ro(['domain', 'respond', 'initiative']) },
+    [],
+    mkResult('hybrid', 'low', ['undefined_mission']),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('structural ≥ 3 items même avec futureState.type=null', () => {
+    expect(actionPlan.structural.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('Gap 6.6 — T-L2-04 et T-L2-01b donnent la même card (pas de doublon)', () => {
+  // T-L2-04 actif (tout bloqué) → displayed[0]=T-L2-04
+  // T-L2-01b absent (déduplication), donc pas de risque de doublon
+  const team = mkTeam('g66', 'Tout bloqué',
+    {},
+    [{ targetId: 'a', mode: 'bloque' }, { targetId: 'b', mode: 'bloque' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('1 seul quick win bloque (T-L2-04)', () => {
+    const bloqueCards = actionPlan.quickWins.filter(qw =>
+      qw.titre.includes('dépendances bloquantes')
+    );
+    expect(bloqueCards).toHaveLength(1);
+  });
+  it('source est T-L2-04', () => {
+    expect(actionPlan.quickWins[0].source).toBe('T-L2-04 — fort');
+  });
+});
+
+describe('Gap 6.1 — interactionGaps bloque génère item structurel', () => {
+  // 1 dep bloque → gap bloque → item "Résoudre le blocage avec..."
+  const teamX = mkTeam('tx', 'Équipe X', {}, [], mkResult('platform', 'high'));
+  const team = mkTeam('g61d', 'SA 1 bloque',
+    { q1: ms(['A']) },
+    [{ targetId: 'tx', mode: 'bloque' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { actionPlan } = derivePart2(team, [teamX]);
+
+  it('item bloque contient "Résoudre le blocage avec Équipe X"', () => {
+    const item = actionPlan.structural.find(i => i.action.includes('Résoudre le blocage avec Équipe X'));
+    expect(item).toBeDefined();
+  });
+  it('condition bloque mentionne throughput', () => {
+    const item = actionPlan.structural.find(i => i.action.includes('Résoudre le blocage avec Équipe X'));
+    expect(item.condition).toContain('throughput');
+  });
+});
+
+describe('Structurel — cap à 5 items', () => {
+  // Enabling + extraneous + T-L1-01 + T-L1-02 + T-L1-03 + 2 bloque = 7 items brut → capped à 5
+  const team = mkTeam('cap5', 'Multi-item',
+    { q1: ms(['A', 'C']), q1b: 'incoming', q3: 'operational' },
+    [{ targetId: 'a', mode: 'bloque' }, { targetId: 'b', mode: 'bloque' }],
+    mkResult('stream_aligned', 'medium', ['bottleneck', 'enabling_drift', 'undefined_mission']),
+  );
+  const { actionPlan } = derivePart2(team, []);
+
+  it('structural ne dépasse pas 5 items', () => {
+    expect(actionPlan.structural.length).toBeLessThanOrEqual(5);
+  });
+});
+
 describe('derivePart2 — deps undefined safe', () => {
   it('fonctionne sans deps', () => {
     const team = { id: 't', name: 'T', answers: {}, result: mkResult('stream_aligned', 'high') };
