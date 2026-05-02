@@ -600,24 +600,118 @@ function generateActionPlan(futureState, triggers, cognitiveLoadGap, interaction
 }
 
 // ─── prefillTeamApi ───────────────────────────────────────────────
+
+// Gap 7.3 — resolve raw answer IDs to readable labels locally (no questions.js dependency)
+const Q1_OPTION_LABELS = {
+  A: "D'un domaine ou processus métier dont notre équipe est responsable en continu",
+  B: "D'un domaine technique précis que nous sommes les seuls à maîtriser, et que d'autres équipes sollicitent",
+  C: "De demandes variées que d'autres équipes nous adressent",
+  D: "De problèmes ou besoins que notre équipe identifie elle-même",
+};
+
+const Q2_OPTION_LABELS = {
+  '1': "Un service ou outil qu'elles utilisent directement, sans avoir besoin de nous à chaque fois",
+  '2': "Du coaching ou de la formation — notre rôle est de les aider à progresser, pas de faire à leur place",
+  '3': "Des livrables ou recommandations — nous produisons quelque chose qu'elles consomment ensuite",
+  '4': "La gestion d'un système dont la complexité justifie une équipe dédiée",
+};
+
+const Q3C_LABELS = {
+  self_service: "En autonomie — les équipes utilisent ce que nous fournissons sans nous solliciter",
+  via_us:       "Via l'équipe — les équipes doivent nous contacter directement pour obtenir ce dont elles ont besoin",
+};
+
+// Gap 7.2 — lookup helpers with defensive fallbacks
+const TYPE_LABELS_FALLBACK = {
+  stream_aligned:        'Équipe orientée valeur',
+  platform:              'Équipe plateforme',
+  enabling:              "Équipe d'accompagnement",
+  complicated_subsystem: 'Équipe sous-système',
+  hybrid:                'Équipe non définie',
+};
+
+const ALERT_LABELS_FALLBACK = {
+  bottleneck:        "Goulot d'étranglement",
+  enabling_drift:    "Enabling en dérive",
+  undefined_mission: "Mission non définie",
+};
+
+const getTypeLabel  = (type)    => TYPE_META?.[type]?.label         ?? TYPE_LABELS_FALLBACK[type]  ?? type;
+// ALERT_META uses .title (not .label) — fallback always provides the short label
+const getAlertLabel = (alertId) => ALERT_META?.[alertId]?.label     ?? ALERT_LABELS_FALLBACK[alertId] ?? alertId;
+
+// Gap 7.4 — build PartenaireItem[] by merging deps × interactionGaps on targetId
+const buildPartenaires = (deps, interactionGaps) => {
+  if (!deps || deps.length === 0) return [];
+  return deps.map(dep => {
+    const gap = interactionGaps.find(g => g.teamId === dep.targetId);
+    return {
+      teamId:      dep.targetId,
+      teamName:    gap?.teamName ?? dep.targetId,
+      mode:        dep.mode,
+      recommended: gap?.recommended ?? null,
+    };
+  });
+};
+
 function prefillTeamApi(team, futureState, interactionGaps) {
-  const { answers, deps = [], result } = team;
-  const missionRaw    = dominant(answers.q1?.ranked);
-  const outputsRaw    = answers.q2?.selected ?? [];
-  const modeAccesRaw  = answers.q3c;
+  // Gap 7.7 — destructure name + defensive defaults
+  const { name, answers = {}, deps = [], result } = team;
+
+  const q1Dominant       = answers.q1?.ranked?.[0] ?? null;
+  const q2Selected       = answers.q2?.selected ?? [];
+  const partenairesList  = buildPartenaires(deps, interactionGaps);
 
   return {
-    nom:         { value: team.name,                                           status: 'complete', editable: false },
-    typeActuel:  { value: TYPE_META[result.type]?.label ?? result.type,        status: 'complete', editable: false },
-    typeCible:   { value: futureState.type,                                    status: 'complete', editable: false },
-    mission:     { value: missionRaw ?? null,                                  status: missionRaw    ? 'partial' : 'empty', editable: true },
-    outputs:     { value: outputsRaw,                                          status: outputsRaw.length > 0 ? 'partial' : 'empty', editable: true },
-    modeAcces:   { value: modeAccesRaw ?? null,                                status: modeAccesRaw !== undefined ? 'partial' : 'empty', editable: true },
-    partenaires: { value: interactionGaps,                                     status: deps.length > 0 ? 'complete' : 'empty', editable: false },
-    alertes:     { value: result.alerts.map(a => ALERT_META[a]?.title ?? a),   status: 'complete', editable: false },
-    slo:         { value: null, status: 'empty', editable: true },
-    cadence:     { value: null, status: 'empty', editable: true },
-    contact:     { value: null, status: 'empty', editable: true },
+    nom: {
+      value:    name,
+      status:   'complete',
+      editable: false,
+    },
+    typeActuel: {
+      value:    getTypeLabel(result.type),
+      status:   'complete',
+      editable: false,
+    },
+    // Gap 7.5 — empty when futureState.type is null
+    typeCible: {
+      value:    futureState.type !== null ? getTypeLabel(futureState.type) : null,
+      status:   futureState.type !== null ? 'complete' : 'empty',
+      editable: false,
+    },
+    // Gap 7.3 — resolve Q1 ID to readable label; status based on key existence
+    mission: {
+      value:    q1Dominant ? (Q1_OPTION_LABELS[q1Dominant] ?? q1Dominant) : null,
+      status:   answers.q1 !== undefined ? 'partial' : 'empty',
+      editable: true,
+    },
+    // Gap 7.3 — resolve Q2 IDs to readable labels
+    outputs: {
+      value:    q2Selected.map(id => Q2_OPTION_LABELS[id] ?? id),
+      status:   answers.q2 !== undefined ? 'partial' : 'empty',
+      editable: true,
+    },
+    // Gap 7.3 — resolve Q3c ID to readable label
+    modeAcces: {
+      value:    answers.q3c ? (Q3C_LABELS[answers.q3c] ?? answers.q3c) : null,
+      status:   answers.q3c !== undefined ? 'partial' : 'empty',
+      editable: true,
+    },
+    // Gap 7.4 — PartenaireItem[] with teamName + recommended
+    partenaires: {
+      value:    partenairesList,
+      status:   partenairesList.length > 0 ? 'complete' : 'empty',
+      editable: false,
+    },
+    // Gap 7.2 + 7.6 — short alert labels; empty when no alerts
+    alertes: {
+      value:    result.alerts.map(a => getAlertLabel(a)),
+      status:   result.alerts.length > 0 ? 'complete' : 'empty',
+      editable: false,
+    },
+    slo:     { value: null, status: 'empty', editable: true },
+    cadence: { value: null, status: 'empty', editable: true },
+    contact: { value: null, status: 'empty', editable: true },
   };
 }
 
