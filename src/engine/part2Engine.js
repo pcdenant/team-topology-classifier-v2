@@ -290,7 +290,9 @@ function analyzeInteractions(deps, teams) {
 }
 
 // ─── recommendFutureState ─────────────────────────────────────────
-function recommendFutureState(result, triggers, cognitiveLoadGap) {
+// Sélection par result.type + triggerDominant.id uniquement.
+// La colonne "Axe CL dominant" de la spec est descriptive — jamais une condition (Gap 5.1).
+function recommendFutureState(result, triggers) {
   if (result.confidence === 'low') {
     return {
       type: null,
@@ -303,11 +305,14 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
   }
 
   const triggerDominantId = triggers.all[0]?.id ?? null;
-  const { dominantAxis } = cognitiveLoadGap;
   const hasTrigger = (id) => triggers.all.some(t => t.id === id);
 
-  const rule = (type, label, priority, enablingTeam, confidence) =>
-    ({ type, label, priority, enablingTeam, confidence, message: null });
+  // Gap 5.3/5.4 : message = priority quand type = null (les deux champs sont synonymes
+  // quand le moteur ne peut pas recommander un type) ; message = null sinon.
+  const rule = (type, label, priority, enablingTeam, confidence) => ({
+    type, label, priority, enablingTeam, confidence,
+    message: type === null ? priority : null,
+  });
 
   if (result.type === 'stream_aligned') {
     if (triggerDominantId === 'T-L2-04')
@@ -318,30 +323,32 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
       return rule('stream_aligned', "SA à clarifier",
         "Définir le domaine avant tout arbitrage de backlog",
         'Recommandée', 'moyen');
-    if (triggerDominantId === 'T-L2-01b')
-      return rule('stream_aligned', "SA autonome",
-        "Résoudre les dépendances bloquantes avant tout changement structurel",
-        'Optionnelle', 'fort');
     if (triggerDominantId === 'T-L2-05')
       return rule('stream_aligned', "SA avec ownership",
         "Reprendre l'arbitrage du backlog — arrêter la réactivité comme mode par défaut",
         'Recommandée', 'fort');
-    if (triggerDominantId === 'T-L2-03b' && result.secondarySignals.includes('platform'))
-      return rule('platform', "SA → Platform émergente",
-        "Identifier les services stables rendus aux autres équipes et les extraire progressivement",
-        'Recommandée', 'moyen');
+    if (triggerDominantId === 'T-L2-01b')
+      return rule('stream_aligned', "SA autonome",
+        "Résoudre les dépendances bloquantes avant tout changement structurel",
+        'Optionnelle', 'fort');
     if (triggerDominantId === 'T-L2-08')
       return rule('stream_aligned', "SA fluidifiée",
         "Clarifier les frontières avec les équipes sources de friction — cartographier avant d'agir",
         'Optionnelle', 'moyen');
-    // SA-1 — no trigger
+    // Gap 5.6 : SA-6 testée après toutes les règles prioritaires.
+    // Sa condition inspecte triggers.all (pas seulement le dominant) — peut s'activer
+    // même si un trigger de plus haute priorité occupe la position dominante.
+    if (hasTrigger('T-L2-03b') && result.secondarySignals.includes('platform'))
+      return rule('platform', "SA → Platform émergente",
+        "Identifier les services stables rendus aux autres équipes et les extraire progressivement",
+        'Recommandée', 'moyen');
     return rule('stream_aligned', "SA confirmée",
       "Protéger l'ownership du domaine — documenter les frontières",
       'Optionnelle', 'fort');
   }
 
   if (result.type === 'platform') {
-    // PL-5: T-L1-01 dominant AND T-L2-08 also active
+    // PL-5 : condition multi-critères explicite (cf. spec)
     if (triggerDominantId === 'T-L1-01' && hasTrigger('T-L2-08'))
       return rule('platform', "Platform en transition",
         "Le goulot et la friction coexistent — l'ordre est : self-service d'abord, SLA ensuite",
@@ -350,7 +357,8 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
       return rule('platform', "Platform produit",
         "Passer à l'accès self-service avant toute réorganisation",
         'Optionnelle', 'fort');
-    if (triggerDominantId === 'T-L2-03b' && dominantAxis === 'germane')
+    // Gap 5.1 : dominantAxis retiré — T-L2-03b seul suffit
+    if (triggerDominantId === 'T-L2-03b')
       return rule('platform', "Platform + Enabling à séparer",
         "Séparer explicitement les missions de service et d'accompagnement",
         'Recommandée', 'moyen');
@@ -358,7 +366,6 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
       return rule('platform', "Platform déchargée",
         "Réduire la surface de contact — toutes les demandes ne méritent pas le même niveau de service",
         'Optionnelle', 'moyen');
-    // PL-1 — no trigger
     return rule('platform', "Platform confirmée",
       "Mesurer l'adoption self-service — c'est le seul indicateur qui compte",
       'Optionnelle', 'fort');
@@ -377,7 +384,6 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
       return rule('enabling', "Enabling spécialisée",
         "Concentrer la mission sur un domaine de compétence — pas tout pour tout le monde",
         'Non pertinente', 'moyen');
-    // EN-1 — no trigger
     return rule('enabling', "Enabling confirmée",
       "Vérifier que chaque mission a un exit plan explicite",
       'Non pertinente', 'fort');
@@ -396,17 +402,14 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
       return rule('complicated_subsystem', "CS avec interfaces",
         "Clarifier qui peut accéder à quoi — pas tout le sous-système n'est également critique",
         'Optionnelle', 'fort');
-    // CS-1 — no trigger
     return rule('complicated_subsystem', "CS consolidée",
       "Documenter et protéger la connaissance — la concentration de savoir est le risque principal",
       'Non pertinente', 'fort');
   }
 
   if (result.type === 'hybrid') {
-    if (triggerDominantId === 'T-L2-02')
-      return rule(null, "Diagnostic incomplet",
-        "L'outil ne peut pas trancher — une conversation avec un coach est la meilleure prochaine étape",
-        'Recommandée', 'faible');
+    // Gap 5.2 : HY-1 (T-L2-02) et HY-4 (T-L2-07) sont du code mort.
+    // Leurs triggers requièrent confidence=low → la règle absolue retourne avant d'atteindre ici.
     if (triggerDominantId === 'T-L1-03')
       return rule(null, "Mission à construire",
         "Clarifier la mission avant de parler de topologie — le type viendra ensuite",
@@ -415,13 +418,9 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
       return rule('stream_aligned', "SA probable",
         "Les signaux pointent vers un domaine — le tester explicitement avant de réorganiser",
         'Recommandée', 'moyen');
-    if (triggerDominantId === 'T-L2-07')
-      return rule(null, "Conversation requise",
-        "Le parcours était trop court pour conclure — relancer le diagnostic avec plus de contexte",
-        'Recommandée', 'faible');
-    // HY default
-    return rule(null, "Diagnostic incomplet",
-      "L'outil ne peut pas trancher — une conversation avec un coach est la meilleure prochaine étape",
+    // Gap 5.5 : fallback HY — trigger dominant absent ou non couvert
+    return rule(null, "Conversation requise",
+      "Le parcours est trop court pour conclure — relancer avec plus de contexte",
       'Recommandée', 'faible');
   }
 
@@ -563,7 +562,7 @@ export function derivePart2(team, teams = []) {
   const triggers         = detectTriggers(result, deps, answers, team.id, teams);
   const cognitiveLoadGap = computeCognitiveLoad(answers, deps, result);
   const interactionGaps  = analyzeInteractions(deps, teams);
-  const futureState      = recommendFutureState(result, triggers, cognitiveLoadGap);
+  const futureState      = recommendFutureState(result, triggers);
   const actionPlan       = generateActionPlan(futureState, triggers, cognitiveLoadGap, interactionGaps);
   const teamApiDraft     = prefillTeamApi(team, futureState, interactionGaps);
 
