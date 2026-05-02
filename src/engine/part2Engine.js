@@ -269,12 +269,15 @@ const INTERACTION_RULES = {
   },
 };
 
-function analyzeInteractions(deps, result, teams) {
+function analyzeInteractions(deps, teams) {
   if (!deps || deps.length === 0) return [];
 
   return deps.map(dep => {
     const target = teams.find(t => t.id === dep.targetId);
-    const rule = INTERACTION_RULES[dep.mode] ?? INTERACTION_RULES.roule;
+    const rule = INTERACTION_RULES[dep.mode] ?? {
+      recommended: "Mode inconnu",
+      rationale:   "Le mode de cette dépendance n'a pas pu être interprété.",
+    };
     return {
       teamId:      dep.targetId,
       teamName:    target?.name ?? dep.targetId,
@@ -559,7 +562,7 @@ export function derivePart2(team, teams = []) {
 
   const triggers         = detectTriggers(result, deps, answers, team.id, teams);
   const cognitiveLoadGap = computeCognitiveLoad(answers, deps, result);
-  const interactionGaps  = analyzeInteractions(deps, result, teams);
+  const interactionGaps  = analyzeInteractions(deps, teams);
   const futureState      = recommendFutureState(result, triggers, cognitiveLoadGap);
   const actionPlan       = generateActionPlan(futureState, triggers, cognitiveLoadGap, interactionGaps);
   const teamApiDraft     = prefillTeamApi(team, futureState, interactionGaps);
