@@ -309,6 +309,142 @@ describe('derivePart2 — deps undefined safe', () => {
   });
 });
 
+// ─── recommendFutureState — Gap 5.x ─────────────────────────────────────────
+
+describe('recommendFutureState — HY-2 (T-L1-03 dominant, confidence=medium)', () => {
+  // T-L1-03 fires (undefined_mission), T-L2-09 also fires (hybrid+medium) but lower priority.
+  // Gap 5.3 : message === priority quand type === null.
+  const team = mkTeam('rfs-hy2', 'HY-2',
+    {},
+    [],
+    mkResult('hybrid', 'medium', ['undefined_mission']),
+  );
+  const { futureState } = derivePart2(team, []);
+
+  it('label "Mission à construire"', () => {
+    expect(futureState.label).toBe('Mission à construire');
+  });
+  it('type null', () => {
+    expect(futureState.type).toBeNull();
+  });
+  it('message === priority (Gap 5.3)', () => {
+    expect(futureState.message).toBe(futureState.priority);
+    expect(futureState.message).not.toBeNull();
+  });
+});
+
+describe('recommendFutureState — HY-3 (T-L2-09 dominant)', () => {
+  // hybrid + confidence=medium, no other triggers → T-L2-09 dominant → HY-3.
+  const team = mkTeam('rfs-hy3', 'HY-3',
+    {},
+    [],
+    mkResult('hybrid', 'medium'),
+  );
+  const { futureState } = derivePart2(team, []);
+
+  it('trigger dominant est T-L2-09', () => {
+    expect(futureState.label).toBe('SA probable');
+  });
+  it('type stream_aligned', () => {
+    expect(futureState.type).toBe('stream_aligned');
+  });
+  it('message null (type !== null — Gap 5.4)', () => {
+    expect(futureState.message).toBeNull();
+  });
+});
+
+describe('recommendFutureState — HY fallback (hybrid/high, aucun trigger)', () => {
+  // hybrid + high confidence → no T-L2-02 (needs low), no T-L2-09 (needs medium).
+  // triggers.all empty → fallback "Conversation requise" (Gap 5.5).
+  const team = mkTeam('rfs-hyfall', 'HY fallback',
+    {},
+    [],
+    mkResult('hybrid', 'high'),
+  );
+  const { futureState } = derivePart2(team, []);
+
+  it('label "Conversation requise"', () => {
+    expect(futureState.label).toBe('Conversation requise');
+  });
+  it('type null', () => {
+    expect(futureState.type).toBeNull();
+  });
+  it('confidence faible', () => {
+    expect(futureState.confidence).toBe('faible');
+  });
+  it('message === priority (Gap 5.5)', () => {
+    expect(futureState.message).toBe(futureState.priority);
+    expect(futureState.message).not.toBeNull();
+  });
+});
+
+describe('recommendFutureState — PL-3 sans vérification dominantAxis (Gap 5.1)', () => {
+  // T-L2-03b fires (2 secondary signals), no bottleneck → T-L2-03b dominant.
+  // Gap 5.1 : dominantAxis n'est jamais une condition — PL-3 se déclenche sur T-L2-03b seul.
+  const team = mkTeam('rfs-pl3', 'PL-3',
+    {},
+    [],
+    mkResult('platform', 'high', [], ['enabling', 'stream_aligned']),
+  );
+  const { futureState } = derivePart2(team, []);
+
+  it('label "Platform + Enabling à séparer"', () => {
+    expect(futureState.label).toBe('Platform + Enabling à séparer');
+  });
+  it('type platform', () => {
+    expect(futureState.type).toBe('platform');
+  });
+  it('enablingTeam Recommandée', () => {
+    expect(futureState.enablingTeam).toBe('Recommandée');
+  });
+  it('message null (type !== null — Gap 5.4)', () => {
+    expect(futureState.message).toBeNull();
+  });
+});
+
+describe('recommendFutureState — SA-6 via triggers.all, pas via dominant (Gap 5.6)', () => {
+  // 1 bloque + 1 roule dep → allBlocked=false → T-L2-01a (non T-L2-04).
+  // T-L2-03b présent (2 secondary signals + platform).
+  // SA-6 se déclenche car hasTrigger('T-L2-03b') && secondarySignals.includes('platform'),
+  // même si T-L2-03b n'est pas le trigger dominant.
+  const team = mkTeam('rfs-sa6', 'SA-6',
+    {},
+    [{ targetId: 'x', mode: 'bloque' }, { targetId: 'y', mode: 'roule' }],
+    mkResult('stream_aligned', 'high', [], ['platform', 'enabling']),
+  );
+  const { triggers, futureState } = derivePart2(team, []);
+
+  it('T-L2-01a est le trigger dominant (pas T-L2-03b)', () => {
+    expect(triggers.all[0].id).toBe('T-L2-01a');
+  });
+  it('T-L2-03b est présent dans triggers.all', () => {
+    expect(triggers.all.map(t => t.id)).toContain('T-L2-03b');
+  });
+  it('label "SA → Platform émergente" (SA-6 via triggers.all)', () => {
+    expect(futureState.label).toBe('SA → Platform émergente');
+  });
+  it('type platform', () => {
+    expect(futureState.type).toBe('platform');
+  });
+});
+
+describe('recommendFutureState — message null pour règles type !== null (Gap 5.4)', () => {
+  // SA-1 confirmée : message doit être null (pas undefined, pas omis).
+  const team = mkTeam('rfs-msg', 'SA confirmée message null',
+    { q1: ms(['A', 'C']), q1b: 'us' },
+    [],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { futureState } = derivePart2(team, []);
+
+  it('SA-1 : message est null (jamais undefined)', () => {
+    expect(futureState.message).toBeNull();
+  });
+  it('message est inclus dans l\'objet (clé présente)', () => {
+    expect(Object.prototype.hasOwnProperty.call(futureState, 'message')).toBe(true);
+  });
+});
+
 describe('teamApiDraft — statuts champs', () => {
   const team = mkTeam('api1', 'Mon Équipe',
     { q1: ms(['A', 'C']), q1b: 'us', q3c: 'self_service' },
