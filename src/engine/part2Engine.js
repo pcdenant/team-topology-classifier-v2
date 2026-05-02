@@ -426,100 +426,168 @@ function recommendFutureState(result, triggers, cognitiveLoadGap) {
 }
 
 // ─── generateActionPlan ───────────────────────────────────────────
-const QUICK_WIN_RULES = {
-  'T-L2-04': {
-    titre: "Cartographier les dépendances bloquantes avec les équipes concernées",
-    critere: "Chaque dépendance a un propriétaire identifié et une date de résolution",
-  },
-  'T-L2-01b': {
-    titre: "Cartographier les dépendances bloquantes avec les équipes concernées",
-    critere: "Chaque dépendance a un propriétaire identifié et une date de résolution",
+
+// Gap 6.6 — T-L2-04 and T-L2-01b share the same card (object reference)
+const BLOQUE_CARD = {
+  titre:   "Cartographier les dépendances bloquantes avec les équipes concernées",
+  critere: "Chaque dépendance a un propriétaire identifié et une date de résolution",
+};
+// Gap 6.2 — T-L2-01a card added; all other unmapped triggers are skipped silently
+const QUICK_WIN_CARDS = {
+  'T-L2-04':  BLOQUE_CARD,
+  'T-L2-01b': BLOQUE_CARD,
+  'T-L2-01a': {
+    titre:   "Organiser une session de 30 minutes avec l'équipe bloquante pour nommer le problème précisément",
+    critere: "Les deux équipes ont une formulation commune du blocage et une première piste d'action identifiée",
   },
   'T-L1-01': {
-    titre: "Identifier les 3 demandes les plus fréquentes et documenter leur mode d'accès actuel",
+    titre:   "Identifier les 3 demandes les plus fréquentes et documenter leur mode d'accès actuel",
     critere: "Un document partagé liste les demandes avec leur fréquence et le temps de traitement moyen",
   },
   'T-L1-02': {
-    titre: "Lister les livrables produits et identifier lesquels pourraient être faits par les équipes elles-mêmes",
+    titre:   "Lister les livrables produits et identifier lesquels pourraient être faits par les équipes elles-mêmes",
     critere: "Chaque livrable a une note : transférable / non transférable + pourquoi",
   },
   'T-L1-03': {
-    titre: "Organiser une session de 30 minutes avec le manager pour répondre : quel problème métier disparaîtrait si l'équipe cessait d'exister ?",
+    titre:   "Organiser une session de 30 minutes avec le manager pour répondre : quel problème métier disparaîtrait si l'équipe cessait d'exister ?",
     critere: "Une phrase de mission — imparfaite est OK, inexistante ne l'est pas",
   },
   'T-L2-05': {
-    titre: "Lister les 5 dernières décisions de backlog — qui les a réellement prises ?",
+    titre:   "Lister les 5 dernières décisions de backlog — qui les a réellement prises ?",
     critere: "La liste révèle le vrai décideur vs le décideur déclaré",
   },
   'T-L2-08': {
-    titre: "Nommer les 2 relations les plus frictionnelles et poser une question à chaque équipe : qu'est-ce qui nous ralentit dans notre collaboration ?",
+    titre:   "Nommer les 2 relations les plus frictionnelles et poser une question à chaque équipe : qu'est-ce qui nous ralentit dans notre collaboration ?",
     critere: "Chaque équipe a répondu — même si les réponses se contredisent",
   },
 };
 
-function generateActionPlan(futureState, triggers, cognitiveLoadGap, interactionGaps) {
-  const { dominantAxis } = cognitiveLoadGap;
+// Gap 6.1 — exact content for each structural item
+const ENABLING_TEAM_ITEM = {
+  action:    "Engager une Enabling team — identifier un coach ou référent disponible pour les 6 à 8 prochaines semaines",
+  condition: "Enabling team recommandée par le diagnostic",
+};
 
-  // Quick wins — iterate displayed triggers, cap at 3, dedupe bloque actions
-  const seen = new Set();
+const AXIS_ITEMS = {
+  extraneous: {
+    action:    "Réduire les interruptions entrantes — bloquer des créneaux de travail sans sollicitation dans l'agenda de l'équipe",
+    condition: "Charge extrinsèque élevée — dépendances et demandes dominent le temps de l'équipe",
+  },
+  intrinsic: {
+    action:    "Documenter la connaissance critique — identifier les 3 domaines où une seule personne détient la compréhension complète",
+    condition: "Charge intrinsèque élevée — la complexité du domaine est concentrée",
+  },
+  germane: {
+    action:    "Protéger le temps de travail profond — supprimer ou déléguer au moins 2 réunions récurrentes non essentielles",
+    condition: "Espace de travail profond insuffisant — l'équipe n'a pas de temps pour progresser sur son domaine",
+  },
+};
+
+const L1_STRUCTURAL_ITEMS = {
+  'T-L1-01': {
+    action:    "Définir un SLA de réponse aux demandes — distinguer urgent et important, publier les délais attendus",
+    condition: "Goulot détecté — les demandes entrantes ne sont pas triées",
+  },
+  'T-L1-02': {
+    action:    "Redéfinir chaque engagement actif avec une date de fin explicite — aucun mandat ouvert ne reste sans échéance",
+    condition: "Dérive Enabling détectée — les missions n'ont pas de fin prévue",
+  },
+  'T-L1-03': {
+    action:    "Écrire une phrase de mission en moins de 20 mots et la faire valider par le responsable direct",
+    condition: "Mission non définie — l'équipe n'a pas de domaine prioritaire identifié",
+  },
+};
+
+// Gap 6.4 — fallbacks by futureState.type to guarantee minimum 3 structural items
+const TYPE_STRUCTURAL_FALLBACKS = {
+  stream_aligned: [
+    { action: "Clarifier les frontières du domaine avec les équipes adjacentes — documenter qui peut faire quoi sans solliciter l'équipe", condition: "Fallback — frontières de domaine" },
+    { action: "Définir le critère de Done du domaine — qu'est-ce qui signifie concrètement que la valeur a été livrée ?", condition: "Fallback — critère de valeur" },
+  ],
+  platform: [
+    { action: "Mesurer le taux d'adoption self-service — combien d'équipes utilisent ce qui est fourni sans solliciter l'équipe directement ?", condition: "Fallback — adoption self-service" },
+    { action: "Identifier les 3 services les plus sollicités et les exposer via une interface documentée et accessible", condition: "Fallback — services exposés" },
+  ],
+  enabling: [
+    { action: "Lister les équipes accompagnées et vérifier que chacune a un critère de succès et une date de fin documentés", condition: "Fallback — missions actives" },
+    { action: "Définir le critère de sortie de chaque mission d'accompagnement active — à partir de quand le désengagement est justifié ?", condition: "Fallback — critère de sortie" },
+  ],
+  complicated_subsystem: [
+    { action: "Documenter les interfaces vers le sous-système — qui peut demander quoi, par quel canal, avec quel délai attendu", condition: "Fallback — interfaces sous-système" },
+    { action: "Identifier le bus factor : combien de personnes comprennent entièrement le sous-système sans dépendre d'une seule ?", condition: "Fallback — bus factor" },
+  ],
+  null: [
+    { action: "Réunir l'équipe pour répondre à une seule question : quel est le travail que personne d'autre ne peut faire à notre place ?", condition: "Fallback — mission fondamentale" },
+    { action: "Demander au responsable de classer les 3 dernières livraisons par ordre de valeur perçue pour l'organisation", condition: "Fallback — valeur perçue" },
+  ],
+};
+TYPE_STRUCTURAL_FALLBACKS.hybrid = TYPE_STRUCTURAL_FALLBACKS.null;
+
+function buildStructural(futureState, triggers, cognitiveLoadGap, interactionGaps) {
+  const items = [];
+
+  // 1. Enabling team — always first if recommended
+  if (futureState.enablingTeam === 'Recommandée') {
+    items.push(ENABLING_TEAM_ITEM);
+  }
+
+  // 2. Dominant cognitive load axis
+  if (cognitiveLoadGap.dominantAxis !== null) {
+    items.push(AXIS_ITEMS[cognitiveLoadGap.dominantAxis]);
+  }
+
+  // 3. Active L1 triggers
+  for (const t of triggers.all.filter(t => t.niveau === 1)) {
+    if (L1_STRUCTURAL_ITEMS[t.id]) {
+      items.push(L1_STRUCTURAL_ITEMS[t.id]);
+    }
+  }
+
+  // 4. Interaction gaps — bloque (cap 2) then frotte (cap 1)
+  const bloques = interactionGaps.filter(g => g.current === 'bloque').slice(0, 2);
+  const frottes = interactionGaps.filter(g => g.current === 'frotte').slice(0, 1);
+  for (const g of bloques) {
+    items.push({
+      action:    `Résoudre le blocage avec ${g.teamName} — organiser une session de clarification des frontières`,
+      condition: "Dépendance bloquante — ce blocage coûte du throughput à chaque sprint",
+    });
+  }
+  for (const g of frottes) {
+    items.push({
+      action:    `Clarifier la frontière avec ${g.teamName} — diagnostiquer la source de friction`,
+      condition: "Friction régulière — à résoudre avant que ça devienne un blocage",
+    });
+  }
+
+  // 5. Gap 6.4 — fill up to minimum 3 with type fallbacks
+  const fallbacks = TYPE_STRUCTURAL_FALLBACKS[futureState.type ?? 'null'] ?? TYPE_STRUCTURAL_FALLBACKS.null;
+  let fi = 0;
+  while (items.length < 3 && fi < fallbacks.length) {
+    items.push(fallbacks[fi]);
+    fi++;
+  }
+
+  // 6. Cap at 5, assign priority
+  return items.slice(0, 5).map((item, i) => ({ ...item, priorite: i + 1 }));
+}
+
+function generateActionPlan(futureState, triggers, cognitiveLoadGap, interactionGaps) {
+  // Quick wins — iterate displayed triggers, skip unmapped (Gap 6.2), cap at 3
   const quickWins = [];
   for (const trigger of triggers.displayed) {
-    const qw = QUICK_WIN_RULES[trigger.id];
-    if (!qw) continue;
-    const dedupeKey = (trigger.id === 'T-L2-04' || trigger.id === 'T-L2-01b') ? 'bloque' : trigger.id;
-    if (seen.has(dedupeKey)) continue;
-    seen.add(dedupeKey);
+    const card = QUICK_WIN_CARDS[trigger.id];
+    if (!card) continue; // Gap 6.2 — silent skip for unmapped triggers
     quickWins.push({
-      titre:   qw.titre,
-      critere: qw.critere,
-      source:  `${trigger.id} — confiance : ${trigger.confiance}`,
+      titre:   card.titre,
+      critere: card.critere,
+      source:  `${trigger.id} — ${trigger.confiance}`, // Gap 6.3 — exact format
       horizon: '48h',
     });
     if (quickWins.length >= 3) break;
   }
 
-  // Structural checklist
-  const structural = [];
-  let priorite = 1;
-
-  if (futureState.enablingTeam === 'Recommandée') {
-    structural.push({
-      action: "Activer une Enabling team de transition",
-      priorite: priorite++,
-      condition: "Enabling team recommandée pour accompagner la transition",
-    });
-  }
-
-  if (dominantAxis === 'extraneous') {
-    structural.push({
-      action: "Réduire la charge extrinsèque — clarifier les frontières d'équipe et réduire les interruptions",
-      priorite: priorite++,
-      condition: "Axe extrinsèque dominant",
-    });
-  } else if (dominantAxis === 'intrinsic') {
-    structural.push({
-      action: "Documenter et structurer la connaissance critique — réduire la complexité perçue",
-      priorite: priorite++,
-      condition: "Axe intrinsèque dominant",
-    });
-  } else if (dominantAxis === 'germane') {
-    structural.push({
-      action: "Créer des espaces protégés pour le travail de fond — réduire les interruptions non planifiées",
-      priorite: priorite++,
-      condition: "Axe germinale insuffisant",
-    });
-  }
-
-  for (const t of triggers.all.filter(t => t.niveau === 1)) {
-    if (t.id === 'T-L1-01')
-      structural.push({ action: "Mettre en place un accès self-service pour les services les plus sollicités", priorite: priorite++, condition: "Goulot d'étranglement détecté" });
-    if (t.id === 'T-L1-02')
-      structural.push({ action: "Redéfinir chaque engagement Enabling avec une date de fin explicite", priorite: priorite++, condition: "Enabling drift détecté" });
-    if (t.id === 'T-L1-03')
-      structural.push({ action: "Formaliser la mission de l'équipe avec la direction — une phrase, pas une liste", priorite: priorite++, condition: "Mission non définie" });
-  }
-
-  structural.splice(5);
+  // Structural — Gap 6.1 + 6.4: exact content + minimum 3 guaranteed
+  const structural = buildStructural(futureState, triggers, cognitiveLoadGap, interactionGaps);
 
   // Systemic — 3 fixed steps
   const systemic = [
