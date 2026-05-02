@@ -485,3 +485,163 @@ describe('teamApiDraft — statuts champs', () => {
     expect(d2.modeAcces.status).toBe('empty');
   });
 });
+
+// ════════════════════════════════════════════════════════════════
+// prefillTeamApi — gaps 7.1 à 7.7
+// ════════════════════════════════════════════════════════════════
+
+describe('Gap 7.3 — mission : label lisible (pas ID brut)', () => {
+  const team = mkTeam('g73a', 'SA',
+    { q1: ms(['A', 'C']), q1b: 'us' },
+    [],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('mission.value contient le label Q1-A (pas "A")', () => {
+    expect(teamApiDraft.mission.value).toContain('domaine ou processus métier');
+    expect(teamApiDraft.mission.value).not.toBe('A');
+  });
+});
+
+describe('Gap 7.3 — outputs : labels lisibles (pas IDs bruts)', () => {
+  const team = mkTeam('g73b', 'Platform',
+    { q1: ms(['C']), q2: ms(['1', '2']) },
+    [],
+    mkResult('platform', 'high'),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('outputs.value contient des labels lisibles (pas "1", "2")', () => {
+    expect(teamApiDraft.outputs.value).not.toContain('1');
+    expect(teamApiDraft.outputs.value[0]).toContain('service ou outil');
+  });
+  it('outputs.status est partial (q2 défini)', () => {
+    expect(teamApiDraft.outputs.status).toBe('partial');
+  });
+});
+
+describe('Gap 7.3 — modeAcces : label lisible (pas ID brut)', () => {
+  const team = mkTeam('g73c', 'Platform via_us',
+    { q1: ms(['C']), q2: ms(['1']), q3: 'operational', q3b: 'majority', q3c: 'via_us' },
+    [],
+    mkResult('platform', 'high', ['bottleneck']),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('modeAcces.value contient le label Q3c (pas "via_us")', () => {
+    expect(teamApiDraft.modeAcces.value).toContain("Via l'équipe");
+    expect(teamApiDraft.modeAcces.value).not.toBe('via_us');
+  });
+});
+
+describe('Gap 7.2 — typeActuel : label lisible via TYPE_META', () => {
+  const team = mkTeam('g72a', 'SA',
+    { q1: ms(['A']) },
+    [],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('typeActuel.value est le label lisible (pas "stream_aligned")', () => {
+    expect(teamApiDraft.typeActuel.value).toBe('Équipe orientée valeur');
+  });
+});
+
+describe('Gap 7.2 — alertes : labels courts (pas titres verbeux de ALERT_META)', () => {
+  const team = mkTeam('g72b', 'Platform goulot',
+    { q1: ms(['C']), q2: ms(['1']), q3: 'operational', q3b: 'majority', q3c: 'via_us' },
+    [],
+    mkResult('platform', 'high', ['bottleneck']),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('alertes.value[0] est le label court (pas le titre ALERT_META)', () => {
+    expect(teamApiDraft.alertes.value[0]).toBe("Goulot d'étranglement");
+    expect(teamApiDraft.alertes.value[0]).not.toContain('Point de vigilance');
+  });
+  it('alertes.status est complete (alertes présentes)', () => {
+    expect(teamApiDraft.alertes.status).toBe('complete');
+  });
+});
+
+describe('Gap 7.6 — alertes : status empty si result.alerts = []', () => {
+  const team = mkTeam('g76', 'SA sans alerte',
+    { q1: ms(['A']) },
+    [],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('alertes.status est empty (aucune alerte)', () => {
+    expect(teamApiDraft.alertes.status).toBe('empty');
+  });
+  it('alertes.value est un tableau vide', () => {
+    expect(teamApiDraft.alertes.value).toHaveLength(0);
+  });
+});
+
+describe('Gap 7.5 — typeCible : empty quand futureState.type === null', () => {
+  // Persona 7 : confidence=low → futureState.type=null
+  const team = mkTeam('g75', 'Hybride indéfini',
+    { q1: ms([]), q4: ro(['domain', 'respond', 'initiative']) },
+    [],
+    mkResult('hybrid', 'low', ['undefined_mission']),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('typeCible.status est empty (type null)', () => {
+    expect(teamApiDraft.typeCible.status).toBe('empty');
+  });
+  it('typeCible.value est null', () => {
+    expect(teamApiDraft.typeCible.value).toBeNull();
+  });
+});
+
+describe('Gap 7.4 — partenaires : structure PartenaireItem[]', () => {
+  const teamZ = mkTeam('z', 'Équipe Z', {}, [], mkResult('platform', 'high'));
+  const team = mkTeam('g74', 'SA avec dep',
+    { q1: ms(['A']) },
+    [{ targetId: 'z', mode: 'frotte' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { teamApiDraft } = derivePart2(team, [teamZ]);
+
+  it('partenaires.value[0] a teamId, teamName, mode, recommended', () => {
+    const p = teamApiDraft.partenaires.value[0];
+    expect(p.teamId).toBe('z');
+    expect(p.teamName).toBe('Équipe Z');
+    expect(p.mode).toBe('frotte');
+    expect(p.recommended).toBe('Frontière à clarifier');
+  });
+  it('partenaires.status est complete', () => {
+    expect(teamApiDraft.partenaires.status).toBe('complete');
+  });
+});
+
+describe('Gap 7.4 — partenaires : fallback sur teamId si équipe non trouvée', () => {
+  const team = mkTeam('g74b', 'SA dep inconnue',
+    { q1: ms(['A']) },
+    [{ targetId: 'unknown-id', mode: 'bloque' }],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('teamName fallback sur targetId', () => {
+    expect(teamApiDraft.partenaires.value[0].teamName).toBe('unknown-id');
+  });
+});
+
+describe('Gap 7.1 — outputs : status partial basé sur existence de q2 (pas longueur)', () => {
+  // q2 défini avec selected vide → status doit être partial (q2 existe)
+  const team = mkTeam('g71', 'SA q2 vide',
+    { q1: ms(['A']), q2: { selected: [], ranked: [] } },
+    [],
+    mkResult('stream_aligned', 'high'),
+  );
+  const { teamApiDraft } = derivePart2(team, []);
+
+  it('outputs.status est partial même si selected est vide (q2 défini)', () => {
+    expect(teamApiDraft.outputs.status).toBe('partial');
+  });
+});
